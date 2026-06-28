@@ -84,12 +84,13 @@
   .col-body{display:flex;flex-direction:column;flex:1 0 auto}
   .cell{flex:1 1 0;display:flex;align-items:center;position:relative;padding:8px 0}
 
-  /* connectors */
-  .round:not(.r0) .cell::before{content:'';position:absolute;left:calc(-1*var(--colgap));top:50%;
-    width:var(--colgap);height:1.5px;background:var(--line2);z-index:0}
-  .round:not(.last) .cell::after{content:'';position:absolute;right:calc(-1*var(--colgap)/2);width:1.5px;background:var(--line2);z-index:0}
-  .round:not(.last) .cell:nth-child(odd)::after{top:50%;height:calc(50% + 8px)}
-  .round:not(.last) .cell:nth-child(even)::after{bottom:50%;height:calc(50% + 8px)}
+  /* connectors — direction set per column (two-sided: left flows right, right is mirrored) */
+  .round.in-l .cell::before{content:'';position:absolute;left:calc(-1*var(--colgap));top:50%;width:var(--colgap);height:1.5px;background:var(--line2);z-index:0}
+  .round.in-r .cell::before{content:'';position:absolute;right:calc(-1*var(--colgap));top:50%;width:var(--colgap);height:1.5px;background:var(--line2);z-index:0}
+  .round.out-r .cell::after{content:'';position:absolute;right:calc(-1*var(--colgap)/2);width:1.5px;background:var(--line2);z-index:0}
+  .round.out-l .cell::after{content:'';position:absolute;left:calc(-1*var(--colgap)/2);width:1.5px;background:var(--line2);z-index:0}
+  .round.out-r .cell:nth-child(odd)::after,.round.out-l .cell:nth-child(odd)::after{top:50%;height:calc(50% + 8px)}
+  .round.out-r .cell:nth-child(even)::after,.round.out-l .cell:nth-child(even)::after{bottom:50%;height:calc(50% + 8px)}
 
   .match{position:relative;z-index:1;width:100%;background:var(--card);border:1px solid var(--line);
     border-radius:11px;overflow:hidden;box-shadow:var(--shadow);transition:.16s}
@@ -133,8 +134,16 @@
   .tag.live{background:rgba(192,67,47,.12);color:var(--live);border:1px solid rgba(192,67,47,.3)}
   .tag.final{background:rgba(79,122,63,.14);color:var(--sage);border:1px solid rgba(79,122,63,.32)}
 
-  .champ-cell .match{border-color:var(--line2);box-shadow:0 0 0 1px var(--line2),var(--shadow)}
-  .champ-col{flex:0 0 192px;min-width:192px}
+  /* center column — final + champion + third place, flanked by both halves */
+  .center-col{flex:0 0 214px;min-width:214px}
+  .center-body{justify-content:center;gap:16px}
+  .final-box{position:relative}
+  .final-box .match{border-color:var(--line2);box-shadow:0 0 0 1px var(--line2),var(--shadow)}
+  .final-box::before,.final-box::after{content:'';position:absolute;top:50%;width:var(--colgap);height:1.5px;background:var(--line2);z-index:0}
+  .final-box::before{left:calc(-1*var(--colgap))}
+  .final-box::after{right:calc(-1*var(--colgap))}
+  .mini-label{font-size:10px;letter-spacing:1.2px;text-transform:uppercase;color:var(--ink3);text-align:center;margin-bottom:5px;font-weight:700}
+  .winner-banner .trophy.dim{opacity:.45}
   .winner-banner{margin:0;text-align:center;padding:14px 12px;border-radius:12px;
     background:linear-gradient(180deg,#e3ecca,var(--card2));border:1px solid var(--line2);box-shadow:var(--shadow)}
   .winner-banner .trophy{font-size:24px;line-height:1;margin-bottom:4px}
@@ -478,6 +487,12 @@ const VISUAL={};
   if(m.round!=="R32"){ postorder(m.home.feed); postorder(m.away.feed); }
   (VISUAL[m.round]=VISUAL[m.round]||[]).push(m);
 })("F-1");
+// per-half orderings for the two-sided layout (left = SF-1 subtree, right = SF-2 subtree)
+const VISUAL_L={}, VISUAL_R={};
+function halfOrder(rootId,out){ (function po(id){ const m=BY_ID[id];
+  if(m.round!=="R32"){ po(m.home.feed); po(m.away.feed); }
+  (out[m.round]=out[m.round]||[]).push(m); })(rootId); }
+halfOrder("SF-1",VISUAL_L); halfOrder("SF-2",VISUAL_R);
 
 /* ---------- Live helpers ---------- */
 const liveRec=m=>live[m.espnId];
@@ -584,6 +599,11 @@ function matchHTML(m){
     pens = !!s.pens;
   }
 
+  // a manual pick settles the tie outright — the predicted score & how it was won
+  // no longer matter, so drop them and just mark who was picked
+  const userPicked = !!picks[m.id] && !(r&&(r.state==="in"||r.completed));
+  if(userPicked){ scH=null; scA=null; pens=false; }
+
   // roles
   const finished=isFinal(m), picked=picks[m.id];
   const roleHome = finished ? (winner===a?"win":"lose") : (picked===a?"pick":"");
@@ -611,8 +631,8 @@ function matchHTML(m){
     else if(finished){ foot=`<span>${TEAMS[winner].name} advance</span>`; }
     else if(m.round!=="3P"){
       // rows already show the predicted score, so only flag pens / an upset here
-      const up = winner && loser && tstr(winner) < tstr(loser);
-      foot = pens ? `<span>${TEAMS[winner].name} on pens</span>` : (up ? `<span class="up">upset</span>` : "");
+      const up = !userPicked && winner && loser && tstr(winner) < tstr(loser);
+      foot = userPicked ? "" : (pens ? `<span>${TEAMS[winner].name} on pens</span>` : (up ? `<span class="up">upset</span>` : ""));
     } else foot="";
   } else foot="";
   const clr = picked?`<span class="clr" data-clear="${m.id}">undo ✕</span>`:"";
@@ -640,15 +660,20 @@ function computePrediction(){
 }
 const pred = ()=>{ if(!PREDICTION) PREDICTION=computePrediction(); return PREDICTION; };
 function computeAccuracy(){
-  const P=pred(); let done=0,win=0,exact=0;
+  const P=pred(); let done=0,win=0,exact=0,scoreSum=0;
   for(const m of BRACKET){ const pr=P[m.id], r=liveRec(m); if(!pr||!r||!r.completed||!r.winner) continue;
-    done++; if(r.winner===pr.winner){ win++;
-      const ks=Object.keys(r.byTeam), lt=ks.find(t=>t!==r.winner);
-      if(r.byTeam[r.winner]===pr.pw && (lt!=null?r.byTeam[lt]:r.byTeam[r.winner])===pr.pl) exact++;
-    }
+    done++;
+    const ks=Object.keys(r.byTeam), lt=ks.find(t=>t!==r.winner);
+    const awG=r.byTeam[r.winner], alG=lt!=null?r.byTeam[lt]:awG;
+    if(r.winner===pr.winner){ win++; if(awG===pr.pw && alG===pr.pl) exact++; }
+    // score accuracy = how close the predicted scoreline (winner–loser goals) was to actual;
+    // graded by total goal error so "nearly right" still scores — each goal off ≈ −20%
+    const err=Math.abs(pr.pw-awG)+Math.abs(pr.pl-alG);
+    scoreSum += Math.max(0, 1 - err/5);
   }
-  const pts=exact*3+(win-exact), max=done*3;
-  return {done,win,exact, pct: max>0?Math.round(100*pts/max):null};
+  return {done,win,exact,
+    winPct: done>0?Math.round(100*win/done):null,
+    scorePct: done>0?Math.round(100*scoreSum/done):null};
 }
 function predRow(team,score,isWin){
   const T=TEAMS[team]||{};
@@ -679,56 +704,74 @@ function setAccChip(){
   const chip=$("#accChip"); if(!chip) return;
   if(viewMode!=="predicted"){ chip.style.display="none"; return; }
   chip.style.display=""; const a=computeAccuracy();
-  if(!a.done){ chip.innerHTML='Prediction <b>—</b>'; chip.title='No knockout results yet — the score fills in as games finish.'; }
-  else { chip.innerHTML=`Prediction <b>${a.pct}%</b>`; chip.title=`vs ${a.done} completed game${a.done>1?'s':''}: winners ${a.win}/${a.done}, exact scores ${a.exact}/${a.done}`; }
+  if(!a.done){ chip.innerHTML='Winner <b>—</b> · Score <b>—</b>'; chip.title='No knockout results yet — fills in as games finish.'; }
+  else { chip.innerHTML=`Winner <b>${a.winPct}%</b> · Score <b>${a.scorePct}%</b>`;
+    chip.title=`vs ${a.done} completed game${a.done>1?'s':''}: correct winner in ${a.win}/${a.done} (${a.exact} exact scores). Score % grades how close each predicted scoreline was — each goal off ≈ −20%.`; }
 }
 
 function render(){
   const PRED = viewMode==="predicted";
   if(!PRED){ refreshStrength(); refreshProjection(); }
+  const cardFn = PRED ? matchCardPredicted : matchHTML;
+  const col=(lbl,matches,cls)=>`<div class="round ${cls}">
+      <div class="round-head">${lbl[0]}<small>${lbl[1]}</small></div>
+      <div class="col-body">${matches.map(m=>`<div class="cell">${cardFn(m)}</div>`).join("")}</div></div>`;
+  const L=ROUND_LABEL;
   let html="";
-  ROUND_ORDER.forEach((r,ri)=>{
-    const last=ri===ROUND_ORDER.length-1;
-    const cells=(VISUAL[r]||[]).map(m=>`<div class="cell${r==="F"?" champ-cell":""}">${PRED?matchCardPredicted(m):matchHTML(m)}</div>`).join("");
-    html+=`<div class="round r${ri}${last?" last":""}">
-      <div class="round-head">${ROUND_LABEL[r][0]}<small>${ROUND_LABEL[r][1]}</small></div>
-      <div class="col-body">${cells}</div></div>`;
-  });
-  // champion column — sits to the RIGHT of the final, centered on the final match
-  const champ=PRED?(pred()["F-1"]&&pred()["F-1"].winner):(PROJ["F-1"]&&PROJ["F-1"].winner), fdone=!PRED&&isFinal(BY_ID["F-1"]);
-  let champBox;
-  if(champ){ const T=TEAMS[champ];
-    champBox=`<div class="winner-banner">${fdone?'<div class="trophy">🏆</div>':''}<div class="lbl">${fdone?"World Champions":(PRED?"Predicted Winner":"Projected Winner")}</div>
-       <div class="who">${T.flag} ${T.name}</div></div>`;
-  } else {
-    champBox=`<div class="winner-banner"><div class="lbl">Champion</div><div class="who" style="color:var(--ink3)">—</div></div>`;
-  }
-  html+=`<div class="round champ-col last">
-    <div class="round-head" aria-hidden="true">&nbsp;<small>&nbsp;</small></div>
-    <div class="col-body"><div class="cell">${champBox}</div></div></div>`;
+  // LEFT half — flows left→right toward the centre
+  html+=col(L.R32, VISUAL_L.R32, "out-r");
+  html+=col(L.R16, VISUAL_L.R16, "in-l out-r");
+  html+=col(L.QF,  VISUAL_L.QF,  "in-l out-r");
+  html+=col(L.SF,  VISUAL_L.SF,  "in-l");
+  // CENTRE — final, champion, third place
+  html+=centerCol(PRED);
+  // RIGHT half — mirrored, flows right→left toward the centre
+  html+=col(L.SF,  VISUAL_R.SF,  "mirror in-r");
+  html+=col(L.QF,  VISUAL_R.QF,  "mirror in-r out-l");
+  html+=col(L.R16, VISUAL_R.R16, "mirror in-r out-l");
+  html+=col(L.R32, VISUAL_R.R32, "mirror out-l");
 
   $("#bracket").innerHTML=html;
-  renderThird(PRED);
+  $("#thirdHost").innerHTML="";
   setAccChip();
   if(!PRED) attachHandlers();
 }
 
-function renderThird(PRED){
-  const host=$("#thirdHost"); const m=BY_ID["3P-1"];
-  if(PRED){ host.innerHTML=`<div class="third-wrap"><div class="round-head">Third-place playoff</div>${matchCardPredicted(m)}</div>`; return; }
+function centerCol(PRED){
+  const fm=BY_ID["F-1"];
+  const champ=PRED?(pred()["F-1"]&&pred()["F-1"].winner):(PROJ["F-1"]&&PROJ["F-1"].winner), fdone=!PRED&&isFinal(fm);
+  let champBox;
+  if(champ){ const T=TEAMS[champ];
+    champBox=`<div class="winner-banner"><div class="trophy${fdone?'':' dim'}">🏆</div><div class="lbl">${fdone?"World Champions":(PRED?"Predicted Winner":"Projected Winner")}</div>
+       <div class="who">${T.flag} ${T.name}</div></div>`;
+  } else {
+    champBox=`<div class="winner-banner"><div class="trophy dim">🏆</div><div class="lbl">Champion</div><div class="who" style="color:var(--ink3)">—</div></div>`;
+  }
+  const finalCard = PRED?matchCardPredicted(fm):matchHTML(fm);
+  return `<div class="round center-col">
+    <div class="round-head">${ROUND_LABEL.F[0]}<small>${ROUND_LABEL.F[1]}</small></div>
+    <div class="col-body center-body">
+      ${champBox}
+      <div class="final-box">${finalCard}</div>
+      <div class="bronze-box"><div class="mini-label">Third place</div>${thirdCard(PRED)}</div>
+    </div></div>`;
+}
+
+function thirdCard(PRED){
+  const m=BY_ID["3P-1"];
+  if(PRED) return matchCardPredicted(m);
   const P=PROJ["3P-1"]||{};
   const a=P.home, b=P.away, w=P.winner, l=P.loser;
   let scH=null,scA=null,pens3=false;
   const r=liveRec(m);
   if(r&&(r.state==="in"||r.completed)&&r.byTeam){ if(a)scH=r.byTeam[a]; if(b)scA=r.byTeam[b]; }
   else if(a&&b&&w){ const s=scoreFor(m,w,l); scH=a===w?s.win:s.lose; scA=b===w?s.win:s.lose; pens3=!!s.pens; }
-  host.innerHTML=`<div class="third-wrap">
-    <div class="round-head">Third-place playoff</div>
-    <div class="match">
+  const foot = !(a&&b) ? "" : (isFinal(m)?`<span>${TEAMS[w].name} finish 3rd</span>`:(pens3?`<span>${TEAMS[w].name} on pens</span>`:""));
+  return `<div class="match">
       ${teamRowHTML(m,"home",a,scH,isFinal(m)?(w===a?"win":"lose"):"", pens3&&w===a?'<span class="pens-badge">pens ✓</span>':'')}
       ${teamRowHTML(m,"away",b,scA,isFinal(m)?(w===b?"win":"lose"):"", pens3&&w===b?'<span class="pens-badge">pens ✓</span>':'')}
-      <div class="m-foot"><span>${a&&b?(isFinal(m)?TEAMS[w].name+" finish 3rd":"predicted "+scH+"–"+scA+(pens3?" · "+TEAMS[w].name+" on pens":"")):"awaiting semifinals"}</span></div>
-    </div></div>`;
+      ${foot?`<div class="m-foot">${foot}</div>`:""}
+    </div>`;
 }
 
 /* ---------- Interaction ---------- */
