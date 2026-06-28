@@ -88,7 +88,9 @@
   .row+.row{border-top:1px solid var(--line)}
   .row:hover{background:var(--card2)}
   .row .fl{font-size:17px;line-height:1;text-align:center}
-  .row .nm{font-weight:600;font-size:13px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;display:flex;align-items:center;gap:6px}
+  .row .nm{font-weight:600;font-size:13px;display:flex;align-items:center;gap:6px;min-width:0}
+  .row .nm .tn{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;min-width:0}
+  .row .seed,.row .pick-badge,.row .chk{flex:0 0 auto}
   .row .seed{color:var(--ink3);font-size:10px;font-weight:600}
   .row .sc{font-variant-numeric:tabular-nums;font-weight:800;font-size:15px;min-width:14px;text-align:center;color:var(--ink)}
   .row.tbd{cursor:default}
@@ -162,7 +164,6 @@
     </div>
     <div class="head-tools">
       <span class="pill" id="liveStatus"><span class="dot" id="liveDot"></span><span id="liveText">Connecting…</span></span>
-      <span class="pill" id="oddsModeChip" style="cursor:default" title="Source of the advancement odds">Odds: <b>live</b></span>
       <button class="pill on" id="autoBtn" title="Toggle live auto-refresh">⟳ Auto <b id="autoState">ON</b></button>
       <button class="btn" id="refreshBtn">Refresh</button>
       <button class="btn" id="resetBtn">Reset</button>
@@ -185,8 +186,8 @@
       <span class="k"><span class="tag live">LIVE</span></span>
       <span class="k"><span class="tag final">FINAL</span></span>
     </div>
-    <p><b>Tap any team</b> to send them through — predicted scores and matchups update down the bracket. A lower-ranked team picked to beat a higher-ranked one is scored as a bigger upset (more goals). Tap again to undo, or <b>Reset</b>. <b>Odds:</b> with no picks the bars show <b>live betting odds</b> that auto-update (including in-play), and the favourite is projected to advance. The moment you pick a winner it’s <b>your</b> bracket, so it switches to the steady <b>FIFA-ranking model</b> (which fills the future rounds anyway) and stops shifting under you — though real <b>final results always lock in</b>. The chip in the header shows which is active.</p>
-    <p><b>Data sources.</b> Fixtures, live scores &amp; final results: <a href="https://www.espn.com/soccer/" target="_blank" rel="noopener">ESPN</a> scoreboard feed (<code>site.api.espn.com</code>, polled live). <b>Live match odds:</b> DraftKings 3-way moneyline via that ESPN feed, de-vigged to a “to advance” probability (in-play games use a live score-and-time model). <b>Predicted scorelines</b> and the fallback odds model use the <a href="https://inside.fifa.com/fifa-world-ranking" target="_blank" rel="noopener">FIFA World Ranking</a> (men’s, June 2026). Pre-tournament references: ESPN, FOX Sports, Nate Silver &amp; DraftKings. Not affiliated with FIFA, ESPN or DraftKings.</p>
+    <p><b>Tap any team</b> to send them through — matchups and scores update down the bracket; tap again to undo, or <b>Reset</b>. <b>Who advances</b> defaults to the <b>live betting odds</b> for real games (auto-updating, including in-play) and a form model for future rounds that aren’t set yet; your picks override any game and real <b>final results lock in</b>. <b>Predicted scorelines</b> come from a form model — each team’s 2026 group-stage attack &amp; defence (goals scored / conceded, eased toward their ranking) — so a lower-ranked side that has defended well concedes fewer. When your pick changes who wins, the affected later games re-score from these same form-based pairs.</p>
+    <p><b>Data sources.</b> Fixtures, live scores &amp; final results: <a href="https://www.espn.com/soccer/" target="_blank" rel="noopener">ESPN</a> scoreboard feed (<code>site.api.espn.com</code>, polled live). <b>Live match odds:</b> DraftKings 3-way moneyline via that ESPN feed, de-vigged to a “to advance” probability (in-play games use a live score-and-time model). <b>Predicted scorelines &amp; form model:</b> each team’s 2026 World Cup group-stage goals for &amp; against (3 games) shrunk toward their <a href="https://inside.fifa.com/fifa-world-ranking" target="_blank" rel="noopener">FIFA World Ranking</a> (men’s, June 2026). Not affiliated with FIFA, ESPN or DraftKings.</p>
     <p class="updated" id="updatedAt"></p>
   </div>
 </div>
@@ -204,39 +205,41 @@
 const ESPN_URL = "https://site.api.espn.com/apis/site/v2/sports/soccer/fifa.world/scoreboard?dates=20260628-20260720";
 
 /* code -> { name, flag, rank }  (rank = FIFA men's world ranking, lower = stronger) */
+// rank = FIFA men's world ranking (lower = stronger); gf/ga = 2026 group-stage
+// goals for/against over 3 games (real results) — drives the form scoring model.
 const TEAMS = {
-  ARG:{name:"Argentina",flag:"🇦🇷",rank:1},
-  FRA:{name:"France",flag:"🇫🇷",rank:2},
-  ESP:{name:"Spain",flag:"🇪🇸",rank:3},
-  ENG:{name:"England",flag:"🏴󠁧󠁢󠁥󠁮󠁧󠁿",rank:4},
-  BRA:{name:"Brazil",flag:"🇧🇷",rank:5},
-  POR:{name:"Portugal",flag:"🇵🇹",rank:6},
-  NED:{name:"Netherlands",flag:"🇳🇱",rank:7},
-  BEL:{name:"Belgium",flag:"🇧🇪",rank:8},
-  GER:{name:"Germany",flag:"🇩🇪",rank:9},
-  CRO:{name:"Croatia",flag:"🇭🇷",rank:10},
-  USA:{name:"USA",flag:"🇺🇸",rank:11},
-  MAR:{name:"Morocco",flag:"🇲🇦",rank:12},
-  MEX:{name:"Mexico",flag:"🇲🇽",rank:13},
-  COL:{name:"Colombia",flag:"🇨🇴",rank:14},
-  NOR:{name:"Norway",flag:"🇳🇴",rank:15},
-  JPN:{name:"Japan",flag:"🇯🇵",rank:16},
-  SEN:{name:"Senegal",flag:"🇸🇳",rank:17},
-  SUI:{name:"Switzerland",flag:"🇨🇭",rank:19},
-  AUT:{name:"Austria",flag:"🇦🇹",rank:22},
-  ECU:{name:"Ecuador",flag:"🇪🇨",rank:23},
-  AUS:{name:"Australia",flag:"🇦🇺",rank:24},
-  CAN:{name:"Canada",flag:"🇨🇦",rank:26},
-  SWE:{name:"Sweden",flag:"🇸🇪",rank:30},
-  EGY:{name:"Egypt",flag:"🇪🇬",rank:32},
-  ALG:{name:"Algeria",flag:"🇩🇿",rank:36},
-  CIV:{name:"Ivory Coast",flag:"🇨🇮",rank:40},
-  GHA:{name:"Ghana",flag:"🇬🇭",rank:42},
-  PAR:{name:"Paraguay",flag:"🇵🇾",rank:45},
-  BIH:{name:"Bosnia & Herz.",flag:"🇧🇦",rank:55},
-  COD:{name:"DR Congo",flag:"🇨🇩",rank:56},
-  RSA:{name:"South Africa",flag:"🇿🇦",rank:58},
-  CPV:{name:"Cape Verde",flag:"🇨🇻",rank:70},
+  ARG:{name:"Argentina",flag:"🇦🇷",rank:1,gf:8,ga:1},
+  FRA:{name:"France",flag:"🇫🇷",rank:2,gf:10,ga:2},
+  ESP:{name:"Spain",flag:"🇪🇸",rank:3,gf:5,ga:0},
+  ENG:{name:"England",flag:"🏴󠁧󠁢󠁥󠁮󠁧󠁿",rank:4,gf:6,ga:2},
+  BRA:{name:"Brazil",flag:"🇧🇷",rank:5,gf:7,ga:1},
+  POR:{name:"Portugal",flag:"🇵🇹",rank:6,gf:6,ga:1},
+  NED:{name:"Netherlands",flag:"🇳🇱",rank:7,gf:10,ga:4},
+  BEL:{name:"Belgium",flag:"🇧🇪",rank:8,gf:6,ga:2},
+  GER:{name:"Germany",flag:"🇩🇪",rank:9,gf:10,ga:4},
+  CRO:{name:"Croatia",flag:"🇭🇷",rank:10,gf:5,ga:5},
+  USA:{name:"USA",flag:"🇺🇸",rank:11,gf:8,ga:4},
+  MAR:{name:"Morocco",flag:"🇲🇦",rank:12,gf:6,ga:3},
+  MEX:{name:"Mexico",flag:"🇲🇽",rank:13,gf:6,ga:0},
+  COL:{name:"Colombia",flag:"🇨🇴",rank:14,gf:4,ga:1},
+  NOR:{name:"Norway",flag:"🇳🇴",rank:15,gf:8,ga:7},
+  JPN:{name:"Japan",flag:"🇯🇵",rank:16,gf:7,ga:3},
+  SEN:{name:"Senegal",flag:"🇸🇳",rank:17,gf:8,ga:6},
+  SUI:{name:"Switzerland",flag:"🇨🇭",rank:19,gf:7,ga:3},
+  AUT:{name:"Austria",flag:"🇦🇹",rank:22,gf:6,ga:6},
+  ECU:{name:"Ecuador",flag:"🇪🇨",rank:23,gf:2,ga:2},
+  AUS:{name:"Australia",flag:"🇦🇺",rank:24,gf:2,ga:2},
+  CAN:{name:"Canada",flag:"🇨🇦",rank:26,gf:8,ga:3},
+  SWE:{name:"Sweden",flag:"🇸🇪",rank:30,gf:7,ga:7},
+  EGY:{name:"Egypt",flag:"🇪🇬",rank:32,gf:5,ga:3},
+  ALG:{name:"Algeria",flag:"🇩🇿",rank:36,gf:5,ga:7},
+  CIV:{name:"Ivory Coast",flag:"🇨🇮",rank:40,gf:4,ga:2},
+  GHA:{name:"Ghana",flag:"🇬🇭",rank:42,gf:2,ga:2},
+  PAR:{name:"Paraguay",flag:"🇵🇾",rank:45,gf:2,ga:4},
+  BIH:{name:"Bosnia & Herz.",flag:"🇧🇦",rank:55,gf:5,ga:6},
+  COD:{name:"DR Congo",flag:"🇨🇩",rank:56,gf:4,ga:3},
+  RSA:{name:"South Africa",flag:"🇿🇦",rank:58,gf:2,ga:3},
+  CPV:{name:"Cape Verde",flag:"🇨🇻",rank:70,gf:2,ga:2},
 };
 
 /* Bracket structure: id, round, slot, espnId, kickoff(ISO), feeders */
@@ -283,35 +286,57 @@ const NEXT_ROUND = {R32:"R16",R16:"QF",QF:"SF",SF:"F"};
 const clamp=(x,lo,hi)=>Math.max(lo,Math.min(hi,x));
 const rank = c => (TEAMS[c]?TEAMS[c].rank:50);
 
-// score a decided match given winner & loser FIFA ranks
-function scoreByRank(rWin,rLose){
-  const gap = rLose - rWin;            // >0: favourite (better rank) won; <0: upset
-  let win,lose;
-  if(gap>=0){                          // expected result — clean, modest scoreline
-    win  = clamp(1+Math.round(gap/16),1,4);
-    lose = (gap>=26?0:1);
-    lose = Math.min(lose,win-1);
-  }else{                               // upset — the lower-ranked team wins, higher-scoring
-    const up=-gap;                      // size of the upset (rank gap overturned)
-    win  = clamp(2+Math.round(up/28),2,4);   // bigger upset -> more goals
-    lose = clamp(1+Math.round(up/55),1,win-1);
-  }
-  return {win,lose};
+// deterministic 0..1 nudge per matchup, so borderline games vary naturally
+function hashFrac(a,b){
+  let s=a+"|"+b, h=2166136261>>>0;
+  for(let i=0;i<s.length;i++){ h=Math.imul(h^s.charCodeAt(i),16777619); }
+  return (h>>>0)/4294967296;
 }
-// pre-compute every ordered pairing so nothing is calculated live
-const SCORES = {};
-for(const w in TEAMS){ SCORES[w]={}; for(const l in TEAMS){ if(w===l) continue; SCORES[w][l]=scoreByRank(TEAMS[w].rank,TEAMS[l].rank); } }
+
+/* ---------- FORM SCORING MODEL ------------------------------------------------
+   Each team's group-stage goals-for / goals-against (3 real games) are shrunk
+   toward a ranking-based prior, giving an attack rate and a "goals conceded"
+   rate per game. So a low-ranked side that kept clean sheets (e.g. Cape Verde:
+   2 GA, two 0-0s) is modelled as genuinely tough to break down, not a pushover.
+   Expected goals for a pairing = one team's attack vs the other's defence.
+   Every one of the 32x31 ordered (winner,loser) scorelines is pre-computed.   */
+const GP=3, SHRINK=2.6, REF=1.5, KBASE=1.40;
+const priorAtt  = r => clamp(2.10 - (r-1)*0.018, 0.85, 2.10);  // goals/g prior by rank
+const priorConc = r => clamp(0.70 + (r-1)*0.014, 0.70, 1.80);  // conceded/g prior by rank
+const attRate   = t => ((FORM[t]?FORM[t].gf:TEAMS[t].gf) + SHRINK*priorAtt(TEAMS[t].rank))/(GP+SHRINK);
+const concRate  = t => ((FORM[t]?FORM[t].ga:TEAMS[t].ga) + SHRINK*priorConc(TEAMS[t].rank))/(GP+SHRINK);
+const attMult   = t => attRate(t)/REF;     // >1 = attack above tournament average
+const defMult   = t => concRate(t)/REF;    // >1 = concedes more (weaker defence)
+const FORM = {};   // optional opponent-adjusted overrides {code:{gf,ga}} (filled later)
+function matchupXG(a,b){ return { xa:KBASE*attMult(a)*defMult(b), xb:KBASE*attMult(b)*defMult(a) }; }
+
+// predicted scoreline for a decided match, shown from the WINNER's side
+function formScore(W,L){
+  const {xa:xW, xb:xL}=matchupXG(W,L);
+  const n1=hashFrac(W,L)-0.5, n2=hashFrac(L,W)-0.5;      // per-matchup spread
+  const gL=clamp(Math.round(xL*0.62 + n2*1.3), 0, 3);    // loser's goals — often a shutout
+  const margin=clamp(Math.round(0.5 + (xW-xL)*0.95 + n1*1.7), 1, 4); // winner edge ~ form gap
+  return {win:clamp(gL+margin,1,6), lose:gL};
+}
+const SCORES={};
+function buildScores(){ for(const w in TEAMS){ SCORES[w]={}; for(const l in TEAMS){ if(w===l) continue; SCORES[w][l]=formScore(w,l); } } }
+buildScores();
 const lookScore = (w,l)=> (SCORES[w]&&SCORES[w][l]) ? SCORES[w][l] : {win:1,lose:0};
 
-// P(a advances past b) from FIFA-rank gap (knockout, incl. ET/pens)
-function advProb(a,b){ const d=rank(b)-rank(a); return 1/(1+Math.exp(-d/12)); }
+// P(a advances past b) from the form model's expected goals (incl. ET/pens)
+function advProb(a,b){
+  const {xa,xb}=matchupXG(a,b);
+  let wa=0,dr=0,wb=0;
+  for(let i=0;i<=8;i++){ const pi=pois(i,xa); for(let j=0;j<=8;j++){ const p=pi*pois(j,xb); if(i>j)wa+=p; else if(i<j)wb+=p; else dr+=p; } }
+  return wa + dr*(xa+xb>0?xa/(xa+xb):0.5);
+}
 
 // in-game live model: expected goals tilted by rank gap, Poisson on remaining time
 const FACT=[1,1,2,6,24,120,720,5040,40320,362880];
 const pois=(k,mu)=>Math.exp(-mu)*Math.pow(mu,k)/FACT[k];
 function liveModel(a,b,gh,ga,minute){
-  const d=rank(b)-rank(a), tilt=clamp(d/40,-1,1);
-  const xaF=clamp(1.35+tilt*0.7,0.35,3.0), xbF=clamp(1.35-tilt*0.7,0.35,3.0);
+  const xg=matchupXG(a,b);
+  const xaF=clamp(xg.xa,0.3,3.2), xbF=clamp(xg.xb,0.3,3.2);
   const frac=clamp((94-Math.min(minute,94))/94,0,1);
   const muA=xaF*frac, muB=xbF*frac;
   let winA=0,draw=0,winB=0;
@@ -319,7 +344,7 @@ function liveModel(a,b,gh,ga,minute){
     const p=pi*pois(j,muB), fa=gh+i, fb=ga+j;
     if(fa>fb)winA+=p; else if(fa<fb)winB+=p; else draw+=p;
   }}
-  const penA=1/(1+Math.exp(-d/30));
+  const penA=xaF/(xaF+xbF);
   return {advA:winA+draw*penA, advB:winB+draw*(1-penA), projA:gh+muA, projB:ga+muB};
 }
 
@@ -339,24 +364,20 @@ const isFinal=m=>{const r=liveRec(m);return r&&r.completed&&r.winner;};
 const finalWinner=m=>{const r=liveRec(m);return (r&&r.completed)?r.winner:null;};
 
 /* ---------- Deterministic bracket projection ---------- */
-// "Custom bracket" mode: the moment you make any manual pick, stop letting the
-// auto-updating live odds shift your bracket and use the FIFA-ranking model.
-const precalcMode = ()=> Object.keys(picks).length>=1;
-
 // P(team a advances over team b) for THIS match — single source of truth for the
-// odds bar AND for deciding which team advances (so they can never disagree).
+// odds bar AND for which team advances (so they can never disagree). Winner defaults
+// to the live betting odds; the form model fills future/hypothetical rounds; a manual
+// pick or a final result overrides.
 function matchAdvProb(m,a,b){
   if(!a||!b) return 0.5;
   const fw=finalWinner(m); if(fw) return fw===a?1:0;          // result locked
   const pk=picks[m.id]; if(pk===a||pk===b) return pk===a?1:0; // your pick
-  if(!precalcMode()){
-    const r=liveRec(m);
-    if(r&&r.state==="in") return liveModel(a,b,r.gh,r.ga,r.minute).advA;        // live, in-play
-    if(r&&r.advByTeam&&r.advByTeam[a]!=null&&r.advByTeam[b]!=null){             // live market odds
-      const pa=r.advByTeam[a], pb=r.advByTeam[b], s=pa+pb; return s>0?pa/s:0.5;
-    }
+  const r=liveRec(m);
+  if(r&&r.state==="in") return liveModel(a,b,r.gh,r.ga,r.minute).advA;          // live, in-play
+  if(r&&r.advByTeam&&r.advByTeam[a]!=null&&r.advByTeam[b]!=null){               // live betting odds
+    const pa=r.advByTeam[a], pb=r.advByTeam[b], s=pa+pb; return s>0?pa/s:0.5;
   }
-  return advProb(a,b);                                         // FIFA-ranking model
+  return advProb(a,b);                                         // form model (future rounds)
 }
 
 // the single winner of a decided pairing: locked result > your pick > favourite
@@ -397,14 +418,6 @@ const matchWinner = m => PROJ[m.id]?PROJ[m.id].winner:null;
 /* ============================== Rendering ============================== */
 const $=s=>document.querySelector(s);
 const pct=x=> x>=0.995?"99%": x<0.005?"1%": Math.round(x*100)+"%";
-function setOddsModeChip(){
-  const chip=$("#oddsModeChip"); if(!chip) return;
-  const n=Object.keys(picks).length;
-  if(precalcMode()){ chip.innerHTML='Odds: <b>model</b>'; chip.style.borderColor='var(--clay)';
-    chip.title=`Your bracket (${n} pick${n===1?'':'s'}) — odds use the FIFA-ranking model so it stops shifting under you. Real results still lock.`; }
-  else { chip.innerHTML='Odds: <b>live</b>'; chip.style.borderColor='';
-    chip.title='Live DraftKings odds via ESPN, auto-updating (including in-play). The model fills future rounds.'; }
-}
 
 function fmtWhen(m){
   const r=liveRec(m);
@@ -423,7 +436,7 @@ function teamRowHTML(m,side,team,score,role){
   const badge = role==="pick"?'<span class="pick-badge">PICK</span>': (role==="win"&&isFinal(m))?'<span class="chk">✓</span>':'';
   return `<div class="${cls.join(' ')}" data-node="${m.id}" data-team="${team}">
     <div class="fl">${T.flag||"🏳️"}</div>
-    <div class="nm">${T.name||team} <span class="seed">#${T.rank||"?"}</span> ${badge}</div>
+    <div class="nm"><span class="tn">${T.name||team}</span><span class="seed">#${T.rank||"?"}</span>${badge}</div>
     <div class="sc">${score!==null&&score!==undefined?score:""}</div>
   </div>`;
 }
@@ -509,7 +522,6 @@ function render(){
     <div class="col-body"><div class="cell">${champBox}</div></div></div>`;
 
   $("#bracket").innerHTML=html;
-  setOddsModeChip();
   renderThird();
   attachHandlers();
 }
