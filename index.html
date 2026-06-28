@@ -186,8 +186,8 @@
       <span class="k"><span class="tag live">LIVE</span></span>
       <span class="k"><span class="tag final">FINAL</span></span>
     </div>
-    <p><b>Tap any team</b> to send them through — matchups and scores update down the bracket; tap again to undo, or <b>Reset</b>. <b>Who advances</b> defaults to the <b>live betting odds</b> for real games (auto-updating, including in-play) and a form model for future rounds that aren’t set yet; your picks override any game and real <b>final results lock in</b>. <b>Predicted scorelines</b> come from a form model — each team’s 2026 group-stage attack &amp; defence (goals scored / conceded, eased toward their ranking) — so a lower-ranked side that has defended well concedes fewer. When your pick changes who wins, the affected later games re-score from these same form-based pairs.</p>
-    <p><b>Data sources.</b> Fixtures, live scores &amp; final results: <a href="https://www.espn.com/soccer/" target="_blank" rel="noopener">ESPN</a> scoreboard feed (<code>site.api.espn.com</code>, polled live). <b>Live match odds:</b> DraftKings 3-way moneyline via that ESPN feed, de-vigged to a “to advance” probability (in-play games use a live score-and-time model). <b>Predicted scorelines &amp; form model:</b> each team’s 2026 World Cup group-stage goals for &amp; against (3 games) shrunk toward their <a href="https://inside.fifa.com/fifa-world-ranking" target="_blank" rel="noopener">FIFA World Ranking</a> (men’s, June 2026). Not affiliated with FIFA, ESPN or DraftKings.</p>
+    <p><b>Tap any team</b> to send them through — matchups and scores update down the bracket; tap again to undo, or <b>Reset</b>. <b>Who advances</b> defaults to the <b>live ESPN/DraftKings odds</b>, which auto-update as games play; the win-% bar appears <em>only</em> on games that have those odds (hover it for the source). Future rounds, and any matchup you create by picking, show <b>just the predicted score — no odds</b>. The <b>predicted scoreline always matches the projected winner</b> (the odds favourite, or your pick), so the two never disagree — it’s a form model: each team’s 2026 group-stage attack &amp; defence, opponent-adjusted and eased toward their ranking, so a side that has defended well concedes fewer. Real <b>final results lock in</b>.</p>
+    <p><b>Data sources.</b> Fixtures, live scores &amp; final results: <a href="https://www.espn.com/soccer/" target="_blank" rel="noopener">ESPN</a> scoreboard feed (<code>site.api.espn.com</code>, polled live). <b>Win-% / who advances:</b> DraftKings 3-way moneyline via that ESPN feed, de-vigged to a “to advance” probability (used pre-match &amp; in-play; a score-and-time model is only a fallback if a live game has no odds). <b>Predicted scorelines &amp; form model:</b> each team’s 2026 World Cup group-stage goals for &amp; against (3 games), opponent-adjusted and shrunk toward their <a href="https://inside.fifa.com/fifa-world-ranking" target="_blank" rel="noopener">FIFA World Ranking</a> (men’s, June 2026). Not affiliated with FIFA, ESPN or DraftKings.</p>
     <p class="updated" id="updatedAt"></p>
   </div>
 </div>
@@ -373,6 +373,8 @@ const VISUAL={};
 const liveRec=m=>live[m.espnId];
 const isFinal=m=>{const r=liveRec(m);return r&&r.completed&&r.winner;};
 const finalWinner=m=>{const r=liveRec(m);return (r&&r.completed)?r.winner:null;};
+// does this exact matchup have real ESPN/DraftKings odds for both shown teams?
+const hasOdds=(m,a,b)=>{const r=liveRec(m);return !!(r&&r.advByTeam&&a&&b&&r.advByTeam[a]!=null&&r.advByTeam[b]!=null);};
 
 /* ---------- Deterministic bracket projection ---------- */
 // P(team a advances over team b) for THIS match — single source of truth for the
@@ -384,11 +386,11 @@ function matchAdvProb(m,a,b){
   const fw=finalWinner(m); if(fw) return fw===a?1:0;          // result locked
   const pk=picks[m.id]; if(pk===a||pk===b) return pk===a?1:0; // your pick
   const r=liveRec(m);
-  if(r&&r.state==="in") return liveModel(a,b,r.gh,r.ga,r.minute).advA;          // live, in-play
-  if(r&&r.advByTeam&&r.advByTeam[a]!=null&&r.advByTeam[b]!=null){               // live betting odds
+  if(r&&r.advByTeam&&r.advByTeam[a]!=null&&r.advByTeam[b]!=null){               // ESPN/DraftKings odds — auto-updating, pre & in-play (preferred: more accurate)
     const pa=r.advByTeam[a], pb=r.advByTeam[b], s=pa+pb; return s>0?pa/s:0.5;
   }
-  return advProb(a,b);                                         // form model (future rounds)
+  if(r&&r.state==="in") return liveModel(a,b,r.gh,r.ga,r.minute).advA;          // live but no odds -> score model
+  return advProb(a,b);                                         // form model (future rounds / picks)
 }
 
 // the single winner of a decided pairing: locked result > your pick > favourite
@@ -476,12 +478,15 @@ function matchHTML(m){
   const roleHome = finished ? (winner===a?"win":"lose") : (picked===a?"pick":"");
   const roleAway = finished ? (winner===b?"win":"lose") : (picked===b?"pick":"");
 
-  // advance bar — matchAdvProb returns live odds, or the model in custom-bracket mode
-  const pa=(a&&b)?matchAdvProb(m,a,b):0.5;
-  const pb=1-pa;
-  const advbar=(a&&b)?`<div class="adv"><span class="advlab">${pct(pa)}</span>
+  // win-% bar: ONLY for games that actually have ESPN/DraftKings odds, and only while
+  // unpicked & not final. Picked games and future/hypothetical matchups show just the score.
+  const showOdds = hasOdds(m,a,b) && !picks[m.id] && !isFinal(m);
+  const pa = showOdds ? matchAdvProb(m,a,b) : 0.5, pb = 1-pa;
+  const src = (r&&r.oddsProvider) ? (r.oddsProvider+" via ESPN") : "ESPN";
+  const advbar = showOdds ? `<div class="adv" title="Live to-advance odds — ${src}">
+     <span class="advlab">${pct(pa)}</span>
      <div class="advbar"><i class="a" style="width:${pa*100}%"></i><i class="b" style="width:${pb*100}%"></i></div>
-     <span class="advlab">${pct(pb)}</span></div>`:"";
+     <span class="advlab">${pct(pb)}</span></div>` : "";
 
   // top-right tag
   let tag="";
@@ -620,10 +625,12 @@ async function fetchLive(manual){
       if(st.state==="post"){ const w=comp.competitors.find(c=>c.winner===true);
         winner=w?w.team.abbreviation:(gh>ga?hs.team.abbreviation:ga>gh?as.team.abbreviation:null); }
       const byTeam={}; byTeam[hs.team.abbreviation]=gh; byTeam[as.team.abbreviation]=ga;
+      const o0=comp.odds&&comp.odds[0];
       const advByTeam=marketAdvByTeam(comp, hs.team.abbreviation, as.team.abbreviation);
+      const oddsProvider=(advByTeam&&o0&&o0.provider&&o0.provider.name)?o0.provider.name:null;
       next[String(ev.id)]={ state:st.state, completed:!!st.completed, winner,
         note: st.state==="post"&&/pen|shootout/i.test(st.detail||"")?"(pens)":"",
-        gh,ga,byTeam,advByTeam,
+        gh,ga,byTeam,advByTeam,oddsProvider,
         clock: st.state==="in"?(ev.status.displayClock||"LIVE"):"",
         minute: parseMinute(ev.status&&ev.status.displayClock, st.detail) };
     }
