@@ -117,10 +117,12 @@
   .tag.final{background:rgba(93,138,110,.14);color:var(--sage);border:1px solid rgba(93,138,110,.32)}
 
   .champ-cell .match{border-color:var(--line2);box-shadow:0 0 0 1px var(--line2),var(--shadow)}
-  .winner-banner{margin-top:12px;text-align:center;padding:11px;border-radius:11px;background:var(--card2);
-    border:1px solid var(--line2)}
+  .champ-col{flex:0 0 192px;min-width:192px}
+  .winner-banner{margin:0;text-align:center;padding:14px 12px;border-radius:12px;
+    background:linear-gradient(180deg,#efe6cf,var(--card2));border:1px solid var(--line2);box-shadow:var(--shadow)}
+  .winner-banner .trophy{font-size:24px;line-height:1;margin-bottom:4px}
   .winner-banner .lbl{font-size:10px;letter-spacing:2px;text-transform:uppercase;color:var(--ink2)}
-  .winner-banner .who{font-size:18px;font-weight:800;margin-top:4px;display:flex;align-items:center;justify-content:center;gap:9px}
+  .winner-banner .who{font-size:18px;font-weight:800;margin-top:5px;display:flex;align-items:center;justify-content:center;gap:9px;flex-wrap:wrap}
 
   .third-wrap{max-width:260px;margin-top:18px}
   .third-wrap .round-head{text-align:left;padding-bottom:8px}
@@ -512,15 +514,20 @@ function render(){
       <div class="round-head">${ROUND_LABEL[r][0]}<small>${ROUND_LABEL[r][1]}</small></div>
       <div class="col-body">${cells}</div></div>`;
   });
-  $("#bracket").innerHTML=html;
-
-  // champion banner
+  // champion column — sits to the RIGHT of the final, centered on the final match
   const champ=projWinner("F-1"), fdone=isFinal(BY_ID["F-1"]);
+  let champBox;
   if(champ){ const T=TEAMS[champ];
-    $("#bracket").querySelector(".round.last .col-body").insertAdjacentHTML("beforeend",
-      `<div class="winner-banner"><div class="lbl">${fdone?"World Champions":"Projected Winner"}</div>
-       <div class="who">${T.flag} ${T.name}</div></div>`);
+    champBox=`<div class="winner-banner">${fdone?'<div class="trophy">🏆</div>':''}<div class="lbl">${fdone?"World Champions":"Projected Winner"}</div>
+       <div class="who">${T.flag} ${T.name}</div></div>`;
+  } else {
+    champBox=`<div class="winner-banner"><div class="lbl">Champion</div><div class="who" style="color:var(--ink3)">—</div></div>`;
   }
+  html+=`<div class="round champ-col last">
+    <div class="round-head" aria-hidden="true">&nbsp;<small>&nbsp;</small></div>
+    <div class="col-body"><div class="cell">${champBox}</div></div></div>`;
+
+  $("#bracket").innerHTML=html;
   setOddsModeChip();
   renderThird();
   attachHandlers();
