@@ -187,7 +187,7 @@
       <span class="k"><span class="tag final">FINAL</span></span>
     </div>
     <p><b>Tap any team</b> to send them through — matchups and scores update down the bracket; tap again to undo, or <b>Reset</b>. <b>Who advances is decided by the market:</b> the live per-game ESPN/DraftKings line for games that have one (that’s the win-% bar — hover for the source; auto-updates, including in-play), and the <b>tournament-winner (outright) odds</b> for future rounds that aren’t set yet. Your picks override any game; real <b>final results lock in</b>. The <b>predicted scoreline always matches that winner</b> — the winning margin scales with the odds, the goals come from each team’s group-stage form (opponent-adjusted), so a side that defends well concedes fewer. Future rounds and any matchup you create by picking show <b>just the score, no odds bar</b>.</p>
-    <p><b>Data sources.</b> Fixtures, live scores &amp; final results: <a href="https://www.espn.com/soccer/" target="_blank" rel="noopener">ESPN</a> scoreboard feed (<code>site.api.espn.com</code>, polled live). <b>Per-game win-%:</b> DraftKings 3-way moneyline via that ESPN feed, de-vigged (used pre-match &amp; in-play). <b>Future-round winners:</b> a de-vigged consensus of outright “to win the cup” odds (DraftKings, FanDuel, FOX, Opta). <b>Predicted scorelines:</b> winning margin from those odds, goals from each team’s 2026 group-stage attack &amp; defence (opponent-adjusted), eased toward their <a href="https://inside.fifa.com/fifa-world-ranking" target="_blank" rel="noopener">FIFA World Ranking</a>. Not affiliated with FIFA, ESPN or DraftKings.</p>
+    <p><b>Data sources.</b> Fixtures, live scores &amp; final results: <a href="https://www.espn.com/soccer/" target="_blank" rel="noopener">ESPN</a> scoreboard feed (<code>site.api.espn.com</code>, polled live). <b>Per-game win-%:</b> DraftKings 3-way moneyline via that ESPN feed, de-vigged (used pre-match &amp; in-play). <b>Future-round winners:</b> a de-vigged consensus of outright “to win the cup” odds (DraftKings, FanDuel, FOX, Opta) — refreshed live from <a href="https://the-odds-api.com" target="_blank" rel="noopener">the-odds-api</a> when a key is set, otherwise a recent snapshot. <b>Predicted scorelines:</b> winning margin from those odds, goals from each team’s 2026 group-stage attack &amp; defence (opponent-adjusted), eased toward their <a href="https://inside.fifa.com/fifa-world-ranking" target="_blank" rel="noopener">FIFA World Ranking</a>. Not affiliated with FIFA, ESPN or DraftKings.</p>
     <p class="updated" id="updatedAt"></p>
   </div>
 </div>
@@ -315,6 +315,20 @@ const TITLE_SCALE = 1.85;
 // P(a beats b) in one knockout game, from the market's title-odds strength gap
 function advProb(a,b){ return 1/(1+Math.exp(-(tstr(a)-tstr(b))/TITLE_SCALE)); }
 
+// To make the outright odds LIVE (auto-updating), paste a free key from the-odds-api.com:
+const ODDS_API_KEY = "";   // <-- e.g. "abcd1234..."; leave "" to use the built-in consensus snapshot
+const TITLE_ODDS_URL = k => `https://api.the-odds-api.com/v4/sports/soccer_fifa_world_cup_winner/odds/?apiKey=${k}&regions=us&markets=outrights&oddsFormat=decimal`;
+// the-odds-api lists teams by full country name; map them to our codes
+const NAME2CODE = (function(){ const m={}; const add=(c,...ns)=>ns.forEach(n=>m[n.toLowerCase()]=c);
+  for(const c in TEAMS) add(c, TEAMS[c].name);
+  add('USA','United States','USA'); add('NED','Netherlands','Holland'); add('ENG','England');
+  add('BIH','Bosnia and Herzegovina','Bosnia & Herzegovina','Bosnia-Herzegovina');
+  add('COD','DR Congo','Congo DR'); add('CIV','Ivory Coast',"Cote d'Ivoire");
+  add('CPV','Cape Verde','Cabo Verde'); add('RSA','South Africa');
+  return m;
+})();
+let titleOddsLive=false;
+
 /* ---------- FORM SCORING MODEL ------------------------------------------------
    Each team's group-stage goals-for / goals-against (3 real games) are shrunk
    toward a ranking-based prior, giving an attack rate and a "goals conceded"
@@ -353,11 +367,18 @@ function scoreFromWinProb(W,L,wp){
   const margin=clamp(Math.round(0.7 + (wp-0.5)*4.2 + n1*1.4), 1, 4);
   return {win:clamp(gL+margin,1,6), lose:gL};
 }
-// pre-compute every ordered pair using the TITLE-odds win prob (future-round default)
-const SCORES={};
-function buildScores(){ for(const w in TEAMS){ SCORES[w]={}; for(const l in TEAMS){ if(w===l) continue; SCORES[w][l]=scoreFromWinProb(w,l,advProb(w,l)); } } }
-buildScores();
-const lookScore = (w,l)=> (SCORES[w]&&SCORES[w][l]) ? SCORES[w][l] : {win:1,lose:0};
+// scores are computed LIVE from the CURRENT odds + form, so they auto-update as odds move
+// and teams advance: a real game uses its own per-game line for the margin; every other
+// game uses the title-odds win prob. Winner is always shown ahead, so a score can never
+// disagree with the odds-chosen winner.
+function scoreFor(m,W,L){
+  if(!W||!L) return {win:1,lose:0};
+  if(m && hasOdds(m,W,L) && !picks[m.id]){
+    const ab=liveRec(m).advByTeam, tot=ab[W]+ab[L];
+    return scoreFromWinProb(W,L, tot>0?ab[W]/tot:0.5);
+  }
+  return scoreFromWinProb(W,L, advProb(W,L));
+}
 
 // (advProb is defined above, from the market title odds)
 
@@ -487,11 +508,7 @@ function matchHTML(m){
   if(r&&(r.state==="in"||r.completed)){
     if(r.byTeam){ if(a!=null) scH=r.byTeam[a]; if(b!=null) scA=r.byTeam[b]; }
   } else if(a&&b&&winner&&m.round!=="3P"){
-    let s;
-    if(hasOdds(m,a,b) && !picks[m.id]){          // real game w/ a live line -> margin from ITS odds
-      const ab=liveRec(m).advByTeam, tot=ab[a]+ab[b], wp=(winner===a?ab[a]:ab[b])/tot;
-      s=scoreFromWinProb(winner,loser,wp);
-    } else s=lookScore(winner,loser);            // future / picked -> pre-computed title-odds pair
+    const s=scoreFor(m,winner,loser);
     scH = (a===winner)?s.win:s.lose;
     scA = (b===winner)?s.win:s.lose;
   }
@@ -572,7 +589,7 @@ function renderThird(){
   let scH=null,scA=null;
   const r=liveRec(m);
   if(r&&(r.state==="in"||r.completed)&&r.byTeam){ if(a)scH=r.byTeam[a]; if(b)scA=r.byTeam[b]; }
-  else if(a&&b&&w){ const s=lookScore(w,l); scH=a===w?s.win:s.lose; scA=b===w?s.win:s.lose; }
+  else if(a&&b&&w){ const s=scoreFor(m,w,l); scH=a===w?s.win:s.lose; scA=b===w?s.win:s.lose; }
   host.innerHTML=`<div class="third-wrap">
     <div class="round-head">Third-place playoff</div>
     <div class="match">
@@ -682,8 +699,31 @@ $("#shareBtn").onclick=async()=>{ persist();
   catch(e){ prompt("Copy your bracket link:",location.href); } };
 window.addEventListener("focus",()=>{ if(autoOn) fetchLive(false); });
 
+/* ---------- Live outright (title) odds — optional, needs ODDS_API_KEY ---------- */
+async function fetchTitleOdds(){
+  if(!ODDS_API_KEY) return;
+  try{
+    const res=await fetch(TITLE_ODDS_URL(ODDS_API_KEY),{cache:'no-store'});
+    if(!res.ok) throw new Error('HTTP '+res.status);
+    const data=await res.json();
+    const agg={};
+    for(const ev of (data||[])) for(const bk of (ev.bookmakers||[])){
+      const mk=(bk.markets||[]).find(x=>x.key==='outrights'); if(!mk) continue;
+      for(const o of (mk.outcomes||[])){ const code=NAME2CODE[(o.name||'').toLowerCase()];
+        if(code&&TEAMS[code]&&o.price>0)(agg[code]=agg[code]||[]).push(1/o.price); }
+    }
+    const codes=Object.keys(agg); if(codes.length<8) return;          // too sparse -> keep snapshot
+    const raw={}; let sum=0;
+    for(const c of codes){ const a=agg[c].sort((x,y)=>x-y); raw[c]=a[Math.floor(a.length/2)]; sum+=raw[c]; }
+    for(const c of codes){ const p=raw[c]/sum; if(p>0) TITLE[c]={prob:p, s:Math.log(p)}; }  // de-vigged
+    titleOddsLive=true; render();
+  }catch(e){ /* keep the snapshot */ }
+}
+
 /* ---------- Boot ---------- */
-loadPicks(); render(); fetchLive(false).then(startPolling);
+loadPicks(); render();
+fetchLive(false).then(startPolling);
+fetchTitleOdds(); setInterval(fetchTitleOdds, 6*3600*1000);   // outright odds move slowly
 </script>
 </body>
 </html>
