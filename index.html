@@ -307,7 +307,18 @@ const attRate   = t => ((FORM[t]?FORM[t].gf:TEAMS[t].gf) + SHRINK*priorAtt(TEAMS
 const concRate  = t => ((FORM[t]?FORM[t].ga:TEAMS[t].ga) + SHRINK*priorConc(TEAMS[t].rank))/(GP+SHRINK);
 const attMult   = t => attRate(t)/REF;     // >1 = attack above tournament average
 const defMult   = t => concRate(t)/REF;    // >1 = concedes more (weaker defence)
-const FORM = {};   // optional opponent-adjusted overrides {code:{gf,ga}} (filled later)
+// opponent-adjusted effective group goals (a clean sheet vs Spain counts more than
+// vs Saudi Arabia; the Curacao/Qatar routs are deflated) — research-derived overrides.
+const FORM = {
+  ARG:{gf:6.5,ga:1.5}, FRA:{gf:9.5,ga:2},   ESP:{gf:4.5,ga:0},   ENG:{gf:5.5,ga:2.5},
+  BRA:{gf:6,ga:1.5},   POR:{gf:5,ga:1.5},   NED:{gf:9,ga:4.5},   BEL:{gf:4,ga:2.5},
+  GER:{gf:8,ga:5.5},   CRO:{gf:4,ga:4},     USA:{gf:7.5,ga:4.5}, MAR:{gf:6.5,ga:3.5},
+  MEX:{gf:4.5,ga:0},   COL:{gf:4,ga:0.5},   NOR:{gf:9,ga:7.5},   JPN:{gf:7,ga:3},
+  SEN:{gf:6.5,ga:7.5}, SUI:{gf:6,ga:3.5},   AUT:{gf:4.5,ga:6.8}, ECU:{gf:3.5,ga:2},
+  AUS:{gf:2.5,ga:2.2}, CAN:{gf:5,ga:3.2},   SWE:{gf:5.5,ga:6.5}, EGY:{gf:3.8,ga:3.5},
+  ALG:{gf:4.5,ga:8.5}, CIV:{gf:3.5,ga:1.5}, GHA:{gf:2,ga:1.5},   PAR:{gf:2,ga:4.5},
+  BIH:{gf:3.5,ga:6.5}, COD:{gf:3,ga:2.5},   RSA:{gf:2,ga:2.5},   CPV:{gf:2,ga:1.5},
+};
 function matchupXG(a,b){ return { xa:KBASE*attMult(a)*defMult(b), xb:KBASE*attMult(b)*defMult(a) }; }
 
 // predicted scoreline for a decided match, shown from the WINNER's side
