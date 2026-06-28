@@ -58,6 +58,20 @@
   .btn:hover{border-color:var(--ink3);background:rgba(0,0,0,.02)}
   .btn.primary{background:var(--ink);color:var(--bg);border-color:var(--ink)}
   .btn.primary:hover{background:#3a352a}
+  .seg{display:inline-flex;border:1px solid var(--line2);border-radius:999px;overflow:hidden;background:transparent}
+  .seg-btn{border:0;background:transparent;color:var(--ink2);font:inherit;font-size:12.5px;font-weight:600;padding:6px 14px;cursor:pointer;transition:.15s}
+  .seg-btn.on{background:var(--ink);color:var(--bg)}
+  .acc-chip{cursor:default;font-variant-numeric:tabular-nums}
+  .acc-chip b{color:var(--sage)}
+  .acc{font-size:10px;font-weight:800;letter-spacing:.3px;padding:2px 6px;border-radius:5px}
+  .acc.ok{background:rgba(93,138,110,.16);color:var(--sage);border:1px solid rgba(93,138,110,.35)}
+  .acc.part{background:rgba(189,140,60,.14);color:#a9712a;border:1px solid rgba(189,140,60,.35)}
+  .acc.no{background:rgba(192,67,47,.12);color:var(--live);border:1px solid rgba(192,67,47,.3)}
+  .acc.pend{color:var(--ink3);border:1px solid var(--line2)}
+  .pred-foot{flex-direction:column;align-items:flex-start;gap:3px}
+  .pred-foot .actual{color:var(--ink2)}
+  .pred-foot .actual .fl{font-size:13px}
+  .pred-foot .actual b{color:var(--ink);font-variant-numeric:tabular-nums}
 
   /* ---- Bracket ---- */
   .scroll-hint{display:none;font-size:11.5px;color:var(--ink3);margin:14px 2px 0}
@@ -164,6 +178,8 @@
       <div class="sub">Round of 32 → Final · live scores, predicted scorelines & your picks</div>
     </div>
     <div class="head-tools">
+      <div class="seg" id="viewToggle"><button class="seg-btn on" data-view="live">Live</button><button class="seg-btn" data-view="predicted">Predicted</button></div>
+      <span class="pill acc-chip" id="accChip" style="display:none" title="How the frozen pre-tournament prediction is doing vs actual results"></span>
       <span class="pill" id="liveStatus"><span class="dot" id="liveDot"></span><span id="liveText">Connecting…</span></span>
       <button class="pill on" id="autoBtn" title="Toggle live auto-refresh">⟳ Auto <b id="autoState">ON</b></button>
       <button class="btn" id="refreshBtn">Refresh</button>
@@ -187,7 +203,7 @@
       <span class="k"><span class="tag live">LIVE</span></span>
       <span class="k"><span class="tag final">FINAL</span></span>
     </div>
-    <p><b>Tap any team</b> to send them through — matchups and scores update down the bracket; tap again to undo, or <b>Reset</b>. <b>Who advances is decided by the market:</b> the live per-game ESPN/DraftKings line for games that have one (that’s the win-% bar — hover for the source; auto-updates, including in-play), and a <b>strength equation</b> (FIFA rank + offensive/defensive form, tuned to the market) for future rounds that aren’t set yet. Your picks override any game; real <b>final results lock in</b>. The <b>predicted scoreline always matches that winner</b> — the margin scales with the odds, the goals come from each team’s form (opponent-adjusted); a close, even tie may go to <b>penalties</b> (the favourite wins the shootout). Future rounds and any matchup you create by picking show <b>just the score, no odds bar</b>.</p>
+    <p><b>Tap any team</b> to send them through — matchups and scores update down the bracket; tap again to undo, or <b>Reset</b>. <b>Who advances is decided by the market:</b> the live per-game ESPN/DraftKings line for games that have one (that’s the win-% bar — hover for the source; auto-updates, including in-play), and a <b>strength equation</b> (FIFA rank + offensive/defensive form, tuned to the market) for future rounds that aren’t set yet. Your picks override any game; real <b>final results lock in</b>. The <b>predicted scoreline always matches that winner</b> — the margin scales with the odds, the goals come from each team’s form (opponent-adjusted); a close, even tie may go to <b>penalties</b> (the favourite wins the shootout). Future rounds and any matchup you create by picking show <b>just the score, no odds bar</b>. Flip the <b>Live / Predicted</b> toggle (top) to see the model’s frozen pre-tournament forecast against the actual results — each game shows what was predicted vs what happened, and the <b>Prediction %</b> grades it (full credit for an exact score, partial for the right winner).</p>
     <p><b>Data sources.</b> Fixtures, live scores &amp; final results: <a href="https://www.espn.com/soccer/" target="_blank" rel="noopener">ESPN</a> scoreboard feed (<code>site.api.espn.com</code>, polled live). <b>Per-game win-%:</b> DraftKings 3-way moneyline via that ESPN feed, de-vigged (used pre-match &amp; in-play). <b>Future-round winners / overall favourites:</b> a strength equation from each team’s FIFA ranking + opponent-adjusted offensive &amp; defensive form, continuously re-fitted to the live per-game betting lines (no key, updates after every game). It’s tuned to the market — reproducing the live R32 lines to ~6.5% and the bookmakers’ outright title odds at r≈0.97. <b>Predicted scorelines:</b> winning margin from those odds, goals from each team’s 2026 group-stage attack &amp; defence (opponent-adjusted), eased toward their <a href="https://inside.fifa.com/fifa-world-ranking" target="_blank" rel="noopener">FIFA World Ranking</a>. Not affiliated with FIFA, ESPN or DraftKings.</p>
     <p class="updated" id="updatedAt"></p>
   </div>
@@ -400,6 +416,8 @@ const refreshStrength=()=>{ SFIT=fitStrength(); };
 const tstr = c => (SFIT&&SFIT[c]!=null)?SFIT[c]:base(c);
 // P(a beats b) in one knockout game, from the (live-fitted) strength gap
 function advProb(a,b){ return 1/(1+Math.exp(-(tstr(a)-tstr(b))/SCALE)); }
+// frozen forecast strength: the pure pre-tournament equation (no live-line fitting)
+function predAdv(a,b){ return 1/(1+Math.exp(-(base(a)-base(b))/SCALE)); }
 
 // predicted scoreline for a decided match (W = odds/pick winner, beats L). Both teams'
 // goals come from the opponent-adjusted expected goals (W's attack vs L's defence and
@@ -452,6 +470,7 @@ function liveModel(a,b,gh,ga,minute){
 
 /* ---------- State ---------- */
 let picks={}, live={}, autoOn=true, pollTimer=null, lastUpdate=null, feedOk=false;
+let viewMode="live", PREDICTION=null;   // "live" bracket vs frozen "predicted" forecast
 
 /* ---------- Visual order (in-order leaves so feeders sit adjacent) ---------- */
 const VISUAL={};
@@ -606,22 +625,79 @@ function matchHTML(m){
   </div>`;
 }
 
+/* ---------- PREDICTED MODE — a frozen pre-tournament forecast vs reality -------- */
+function computePrediction(){
+  const P={}; const order=[...ROUND_ORDER.flatMap(r=>VISUAL[r]||[]), BY_ID["3P-1"]];
+  for(const m of order){
+    const a = m.round==="R32" ? m.home.team : (m.home.loser? P[m.home.feed].loser : P[m.home.feed].winner);
+    const b = m.round==="R32" ? m.away.team : (m.away.loser? P[m.away.feed].loser : P[m.away.feed].winner);
+    const winner = predAdv(a,b)>=0.5?a:b, loser = winner===a?b:a;
+    const s = scoreFromWinProb(winner,loser,predAdv(winner,loser),true);   // static (pre-tournament) form
+    P[m.id]={home:a, away:b, winner, loser, sH:(a===winner?s.win:s.lose), sA:(b===winner?s.win:s.lose), pw:s.win, pl:s.lose, pens:s.pens};
+  }
+  return P;
+}
+const pred = ()=>{ if(!PREDICTION) PREDICTION=computePrediction(); return PREDICTION; };
+function computeAccuracy(){
+  const P=pred(); let done=0,win=0,exact=0;
+  for(const m of BRACKET){ const pr=P[m.id], r=liveRec(m); if(!pr||!r||!r.completed||!r.winner) continue;
+    done++; if(r.winner===pr.winner){ win++;
+      const ks=Object.keys(r.byTeam), lt=ks.find(t=>t!==r.winner);
+      if(r.byTeam[r.winner]===pr.pw && (lt!=null?r.byTeam[lt]:r.byTeam[r.winner])===pr.pl) exact++;
+    }
+  }
+  const pts=exact*3+(win-exact), max=done*3;
+  return {done,win,exact, pct: max>0?Math.round(100*pts/max):null};
+}
+function predRow(team,score,isWin){
+  const T=TEAMS[team]||{};
+  return `<div class="row ${isWin?'win':'lose'}" style="cursor:default">
+    <div class="fl">${T.flag||'🏳️'}</div>
+    <div class="nm"><span class="tn">${T.name||team}</span><span class="seed">#${T.rank||'?'}</span></div>
+    <div class="sc">${score}</div></div>`;
+}
+function matchCardPredicted(m){
+  const P=pred()[m.id]; if(!P||!P.home||!P.away) return `<div class="match"><div class="m-foot"><span>—</span></div></div>`;
+  const when=new Date(m.date).toLocaleDateString(undefined,{month:"short",day:"numeric"});
+  const r=liveRec(m); let badge, actual;
+  if(r&&r.completed&&r.winner){
+    const ks=Object.keys(r.byTeam), lt=ks.find(t=>t!==r.winner);
+    const awG=r.byTeam[r.winner], alG=lt!=null?r.byTeam[lt]:awG;
+    const winOK=r.winner===P.winner, exact=winOK&&awG===P.pw&&alG===P.pl;
+    badge = exact?'<span class="acc ok">✓ exact</span>': winOK?'<span class="acc part">✓ winner</span>':'<span class="acc no">✗ missed</span>';
+    actual = `<span class="actual">actual ${(TEAMS[r.winner]||{}).flag||''} <b>${awG}–${alG}</b> ${(TEAMS[lt]||{}).flag||''}${r.note?' '+r.note:''}</span>`;
+  } else { badge='<span class="acc pend">forecast</span>'; actual='<span class="actual" style="color:var(--ink3)">awaiting result</span>'; }
+  return `<div class="match">
+    <div class="m-top"><span class="when">${when}</span>${badge}</div>
+    ${predRow(P.home,P.sH,P.home===P.winner)}
+    ${predRow(P.away,P.sA,P.away===P.winner)}
+    <div class="m-foot pred-foot"><span>predicted ${P.pw}–${P.pl}${P.pens?' (pens)':''}</span>${actual}</div>
+  </div>`;
+}
+function setAccChip(){
+  const chip=$("#accChip"); if(!chip) return;
+  if(viewMode!=="predicted"){ chip.style.display="none"; return; }
+  chip.style.display=""; const a=computeAccuracy();
+  if(!a.done){ chip.innerHTML='Prediction <b>—</b>'; chip.title='No knockout results yet — the score fills in as games finish.'; }
+  else { chip.innerHTML=`Prediction <b>${a.pct}%</b>`; chip.title=`vs ${a.done} completed game${a.done>1?'s':''}: winners ${a.win}/${a.done}, exact scores ${a.exact}/${a.done}`; }
+}
+
 function render(){
-  refreshStrength();      // re-fit team strength to the latest betting lines
-  refreshProjection();
+  const PRED = viewMode==="predicted";
+  if(!PRED){ refreshStrength(); refreshProjection(); }
   let html="";
   ROUND_ORDER.forEach((r,ri)=>{
     const last=ri===ROUND_ORDER.length-1;
-    const cells=(VISUAL[r]||[]).map(m=>`<div class="cell${r==="F"?" champ-cell":""}">${matchHTML(m)}</div>`).join("");
+    const cells=(VISUAL[r]||[]).map(m=>`<div class="cell${r==="F"?" champ-cell":""}">${PRED?matchCardPredicted(m):matchHTML(m)}</div>`).join("");
     html+=`<div class="round r${ri}${last?" last":""}">
       <div class="round-head">${ROUND_LABEL[r][0]}<small>${ROUND_LABEL[r][1]}</small></div>
       <div class="col-body">${cells}</div></div>`;
   });
   // champion column — sits to the RIGHT of the final, centered on the final match
-  const champ=PROJ["F-1"]&&PROJ["F-1"].winner, fdone=isFinal(BY_ID["F-1"]);
+  const champ=PRED?(pred()["F-1"]&&pred()["F-1"].winner):(PROJ["F-1"]&&PROJ["F-1"].winner), fdone=!PRED&&isFinal(BY_ID["F-1"]);
   let champBox;
   if(champ){ const T=TEAMS[champ];
-    champBox=`<div class="winner-banner">${fdone?'<div class="trophy">🏆</div>':''}<div class="lbl">${fdone?"World Champions":"Projected Winner"}</div>
+    champBox=`<div class="winner-banner">${fdone?'<div class="trophy">🏆</div>':''}<div class="lbl">${fdone?"World Champions":(PRED?"Predicted Winner":"Projected Winner")}</div>
        <div class="who">${T.flag} ${T.name}</div></div>`;
   } else {
     champBox=`<div class="winner-banner"><div class="lbl">Champion</div><div class="who" style="color:var(--ink3)">—</div></div>`;
@@ -631,12 +707,14 @@ function render(){
     <div class="col-body"><div class="cell">${champBox}</div></div></div>`;
 
   $("#bracket").innerHTML=html;
-  renderThird();
-  attachHandlers();
+  renderThird(PRED);
+  setAccChip();
+  if(!PRED) attachHandlers();
 }
 
-function renderThird(){
+function renderThird(PRED){
   const host=$("#thirdHost"); const m=BY_ID["3P-1"];
+  if(PRED){ host.innerHTML=`<div class="third-wrap"><div class="round-head">Third-place playoff</div>${matchCardPredicted(m)}</div>`; return; }
   const P=PROJ["3P-1"]||{};
   const a=P.home, b=P.away, w=P.winner, l=P.loser;
   let scH=null,scA=null,pens3=false;
@@ -753,6 +831,12 @@ $("#shareBtn").onclick=async()=>{ persist();
   try{ await navigator.clipboard.writeText(location.href); toast("Share link copied!"); }
   catch(e){ prompt("Copy your bracket link:",location.href); } };
 window.addEventListener("focus",()=>{ if(autoOn) fetchLive(false); });
+document.querySelectorAll("#viewToggle .seg-btn").forEach(btn=>{
+  btn.onclick=()=>{ viewMode=btn.dataset.view;
+    document.querySelectorAll("#viewToggle .seg-btn").forEach(b=>b.classList.toggle("on",b===btn));
+    render();
+  };
+});
 
 /* ---------- Group-stage scores (fetched once) — seed the live form ratings ---------- */
 async function fetchGroup(){
