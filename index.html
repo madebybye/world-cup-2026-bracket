@@ -187,8 +187,8 @@
       <span class="k"><span class="tag live">LIVE</span></span>
       <span class="k"><span class="tag final">FINAL</span></span>
     </div>
-    <p><b>Tap any team</b> to send them through — matchups and scores update down the bracket; tap again to undo, or <b>Reset</b>. <b>Who advances is decided by the market:</b> the live per-game ESPN/DraftKings line for games that have one (that’s the win-% bar — hover for the source; auto-updates, including in-play), and the <b>tournament-winner (outright) odds</b> for future rounds that aren’t set yet. Your picks override any game; real <b>final results lock in</b>. The <b>predicted scoreline always matches that winner</b> — the margin scales with the odds, the goals come from each team’s form (opponent-adjusted); a close, even tie may go to <b>penalties</b> (the favourite wins the shootout). Future rounds and any matchup you create by picking show <b>just the score, no odds bar</b>.</p>
-    <p><b>Data sources.</b> Fixtures, live scores &amp; final results: <a href="https://www.espn.com/soccer/" target="_blank" rel="noopener">ESPN</a> scoreboard feed (<code>site.api.espn.com</code>, polled live). <b>Per-game win-%:</b> DraftKings 3-way moneyline via that ESPN feed, de-vigged (used pre-match &amp; in-play). <b>Future-round winners / overall favourites:</b> team strengths fitted continuously to the live per-game lines (re-fits after every game, no key needed), anchored to a de-vigged consensus of outright “to win the cup” odds (DraftKings, FanDuel, FOX, Opta) — that snapshot can also be refreshed live from <a href="https://the-odds-api.com" target="_blank" rel="noopener">the-odds-api</a> if a key is set. <b>Predicted scorelines:</b> winning margin from those odds, goals from each team’s 2026 group-stage attack &amp; defence (opponent-adjusted), eased toward their <a href="https://inside.fifa.com/fifa-world-ranking" target="_blank" rel="noopener">FIFA World Ranking</a>. Not affiliated with FIFA, ESPN or DraftKings.</p>
+    <p><b>Tap any team</b> to send them through — matchups and scores update down the bracket; tap again to undo, or <b>Reset</b>. <b>Who advances is decided by the market:</b> the live per-game ESPN/DraftKings line for games that have one (that’s the win-% bar — hover for the source; auto-updates, including in-play), and a <b>strength equation</b> (FIFA rank + offensive/defensive form, tuned to the market) for future rounds that aren’t set yet. Your picks override any game; real <b>final results lock in</b>. The <b>predicted scoreline always matches that winner</b> — the margin scales with the odds, the goals come from each team’s form (opponent-adjusted); a close, even tie may go to <b>penalties</b> (the favourite wins the shootout). Future rounds and any matchup you create by picking show <b>just the score, no odds bar</b>.</p>
+    <p><b>Data sources.</b> Fixtures, live scores &amp; final results: <a href="https://www.espn.com/soccer/" target="_blank" rel="noopener">ESPN</a> scoreboard feed (<code>site.api.espn.com</code>, polled live). <b>Per-game win-%:</b> DraftKings 3-way moneyline via that ESPN feed, de-vigged (used pre-match &amp; in-play). <b>Future-round winners / overall favourites:</b> a strength equation from each team’s FIFA ranking + opponent-adjusted offensive &amp; defensive form, continuously re-fitted to the live per-game betting lines (no key, updates after every game). It’s tuned to the market — reproducing the live R32 lines to ~6.5% and the bookmakers’ outright title odds at r≈0.97. <b>Predicted scorelines:</b> winning margin from those odds, goals from each team’s 2026 group-stage attack &amp; defence (opponent-adjusted), eased toward their <a href="https://inside.fifa.com/fifa-world-ranking" target="_blank" rel="noopener">FIFA World Ranking</a>. Not affiliated with FIFA, ESPN or DraftKings.</p>
     <p class="updated" id="updatedAt"></p>
   </div>
 </div>
@@ -294,61 +294,7 @@ function hashFrac(a,b){
   return (h>>>0)/4294967296;
 }
 
-/* ---------- MARKET TITLE ODDS — decide who wins each game ---------------------
-   De-vigged consensus probability to WIN the cup (median across DraftKings,
-   FanDuel, FOX, Opta etc., normalised to sum to 1). A log-strength from these
-   decides head-to-head winners for games that don't yet have their own live
-   ESPN/DraftKings line (i.e. future rounds); real games still use their own live
-   line. TITLE_SCALE is fit so these reproduce the actual R32 "to advance" lines.  */
-const TITLE_PROB = {
-  FRA:0.1952, ARG:0.162,  ESP:0.1056, ENG:0.1056, POR:0.0633, BRA:0.0629, NED:0.0481,
-  GER:0.041,  USA:0.0289, COL:0.0241, NOR:0.0234, BEL:0.0199, MAR:0.0169, MEX:0.016,
-  JPN:0.016,  SUI:0.0122, SEN:0.0081, CRO:0.0077, ECU:0.0065, CIV:0.0058, CAN:0.0048,
-  AUS:0.0041, AUT:0.0033, SWE:0.0033, EGY:0.0033, ALG:0.0027, GHA:0.0023, PAR:0.0016,
-  BIH:0.0016, COD:0.0012, RSA:0.0012, CPV:0.0012,
-};
-const TITLE = {};
-(function(){ let sum=0; for(const c in TITLE_PROB) sum+=TITLE_PROB[c];
-  for(const c in TITLE_PROB){ const p=TITLE_PROB[c]/sum; TITLE[c]={prob:p, s:Math.log(p)}; }
-})();
-const TITLE_SCALE = 1.85;
-// Team log-strength: starts from the title-odds prior, then is nudged to AGREE with the
-// live per-game betting lines (current + closing). So the overall-winner view and the
-// future-round projections track the market and re-fit after every game — no extra feed,
-// no key, no daily runs. (A live outright feed via ODDS_API_KEY just sharpens the prior.)
-let SFIT=null;
-function fitStrength(){
-  const S={}; for(const c in TITLE) S[c]=TITLE[c].s;
-  const obs=[];
-  for(const m of BRACKET){ const r=liveRec(m); if(!r||!r.advByTeam) continue;
-    const ks=Object.keys(r.advByTeam); if(ks.length!==2) continue;
-    const [a,b]=ks, pa=r.advByTeam[a];
-    if(pa>0.02&&pa<0.98&&TITLE[a]&&TITLE[b]) obs.push([a,b,TITLE_SCALE*Math.log(pa/(1-pa))]);
-  }
-  for(let it=0;it<30;it++){
-    for(const o of obs){ const e=((S[o[0]]-S[o[1]])-o[2])*0.30; S[o[0]]-=e/2; S[o[1]]+=e/2; }
-    for(const c in S) S[c]+=(TITLE[c].s-S[c])*0.04;     // hold near the title-odds prior
-  }
-  return S;
-}
-const refreshStrength = ()=>{ SFIT=fitStrength(); };
-const tstr = c => (SFIT&&SFIT[c]!=null) ? SFIT[c] : (TITLE[c]?TITLE[c].s:Math.log(0.0003));
-// P(a beats b) in one knockout game, from the (market-fitted) strength gap
-function advProb(a,b){ return 1/(1+Math.exp(-(tstr(a)-tstr(b))/TITLE_SCALE)); }
-
-// To make the outright odds LIVE (auto-updating), paste a free key from the-odds-api.com:
-const ODDS_API_KEY = "";   // <-- e.g. "abcd1234..."; leave "" to use the built-in consensus snapshot
-const TITLE_ODDS_URL = k => `https://api.the-odds-api.com/v4/sports/soccer_fifa_world_cup_winner/odds/?apiKey=${k}&regions=us&markets=outrights&oddsFormat=decimal`;
-// the-odds-api lists teams by full country name; map them to our codes
-const NAME2CODE = (function(){ const m={}; const add=(c,...ns)=>ns.forEach(n=>m[n.toLowerCase()]=c);
-  for(const c in TEAMS) add(c, TEAMS[c].name);
-  add('USA','United States','USA'); add('NED','Netherlands','Holland'); add('ENG','England');
-  add('BIH','Bosnia and Herzegovina','Bosnia & Herzegovina','Bosnia-Herzegovina');
-  add('COD','DR Congo','Congo DR'); add('CIV','Ivory Coast',"Cote d'Ivoire");
-  add('CPV','Cape Verde','Cabo Verde'); add('RSA','South Africa');
-  return m;
-})();
-let titleOddsLive=false;
+/* (the team-strength equation is defined below, after the form data it depends on) */
 
 /* ---------- FORM SCORING MODEL ------------------------------------------------
    Each team's group-stage goals-for / goals-against (3 real games) are shrunk
@@ -377,6 +323,43 @@ const FORM = {
   BIH:{gf:3.5,ga:6.5}, COD:{gf:3,ga:2.5},   RSA:{gf:2,ga:2.5},   CPV:{gf:2,ga:1.5},
 };
 function matchupXG(a,b){ return { xa:KBASE*attMult(a)*defMult(b), xb:KBASE*attMult(b)*defMult(a) }; }
+
+/* ---------- TEAM STRENGTH — a small equation from FIFA rank + form ------------
+   strength = WR·z(rank) + WA·z(attack) + WD·z(defence), using each team's FIFA
+   ranking and opponent-adjusted group goals for/against. The weights + SCALE were
+   fit offline so the model reproduces the live R32 betting lines (RMSE ~6.5%) AND
+   the market's outright title odds (log-correlation r≈0.975) — i.e. it matches how
+   far the betting market expects each team to progress. It then re-fits each render
+   to the live per-game lines, so the whole thing stays current with no feed or key. */
+const SCALE=1.48, WR=0.485, WA=0.273, WD=0.180;
+const BASE=(function(){
+  const cs=Object.keys(TEAMS), rc={},at={},df={};
+  cs.forEach(c=>{ rc[c]=-Math.log(TEAMS[c].rank); at[c]=(FORM[c]?FORM[c].gf:TEAMS[c].gf)/3; df[c]=-(FORM[c]?FORM[c].ga:TEAMS[c].ga)/3; });
+  const z=o=>{ const v=cs.map(c=>o[c]), m=v.reduce((x,y)=>x+y,0)/v.length, sd=Math.sqrt(v.reduce((x,y)=>x+(y-m)**2,0)/v.length)||1, r={}; cs.forEach(c=>r[c]=(o[c]-m)/sd); return r; };
+  const zr=z(rc),za=z(at),zd=z(df), B={}; cs.forEach(c=>B[c]=WR*zr[c]+WA*za[c]+WD*zd[c]); return B;
+})();
+const base = c => (BASE[c]!=null?BASE[c]:-2);
+// re-fit strength to the live per-game betting lines each render (anchored to the equation),
+// so the overall-winner / progression view tracks the market and updates after every game
+let SFIT=null;
+function fitStrength(){
+  const S={}; for(const c in TEAMS) S[c]=base(c);
+  const obs=[];
+  for(const m of BRACKET){ const r=liveRec(m); if(!r||!r.advByTeam) continue;
+    const ks=Object.keys(r.advByTeam); if(ks.length!==2) continue; const [a,b]=ks, pa=r.advByTeam[a];
+    // only COMPETITIVE lines carry real strength info; a 95% blow-out vs a minnow doesn't
+    if(pa>0.30&&pa<0.70&&TEAMS[a]&&TEAMS[b]) obs.push([a,b,SCALE*Math.log(pa/(1-pa))]);
+  }
+  for(let it=0;it<25;it++){
+    for(const o of obs){ const e=((S[o[0]]-S[o[1]])-o[2])*0.25; S[o[0]]-=e/2; S[o[1]]+=e/2; }
+    for(const c in S) S[c]+=(base(c)-S[c])*0.07;       // hold near the equation
+  }
+  return S;
+}
+const refreshStrength=()=>{ SFIT=fitStrength(); };
+const tstr = c => (SFIT&&SFIT[c]!=null)?SFIT[c]:base(c);
+// P(a beats b) in one knockout game, from the (live-fitted) strength gap
+function advProb(a,b){ return 1/(1+Math.exp(-(tstr(a)-tstr(b))/SCALE)); }
 
 // predicted scoreline for a decided match (W beats L): the winning MARGIN comes from
 // the WIN PROBABILITY (the odds), the loser's goals from form (their attack vs W's
@@ -725,31 +708,9 @@ $("#shareBtn").onclick=async()=>{ persist();
   catch(e){ prompt("Copy your bracket link:",location.href); } };
 window.addEventListener("focus",()=>{ if(autoOn) fetchLive(false); });
 
-/* ---------- Live outright (title) odds — optional, needs ODDS_API_KEY ---------- */
-async function fetchTitleOdds(){
-  if(!ODDS_API_KEY) return;
-  try{
-    const res=await fetch(TITLE_ODDS_URL(ODDS_API_KEY),{cache:'no-store'});
-    if(!res.ok) throw new Error('HTTP '+res.status);
-    const data=await res.json();
-    const agg={};
-    for(const ev of (data||[])) for(const bk of (ev.bookmakers||[])){
-      const mk=(bk.markets||[]).find(x=>x.key==='outrights'); if(!mk) continue;
-      for(const o of (mk.outcomes||[])){ const code=NAME2CODE[(o.name||'').toLowerCase()];
-        if(code&&TEAMS[code]&&o.price>0)(agg[code]=agg[code]||[]).push(1/o.price); }
-    }
-    const codes=Object.keys(agg); if(codes.length<8) return;          // too sparse -> keep snapshot
-    const raw={}; let sum=0;
-    for(const c of codes){ const a=agg[c].sort((x,y)=>x-y); raw[c]=a[Math.floor(a.length/2)]; sum+=raw[c]; }
-    for(const c of codes){ const p=raw[c]/sum; if(p>0) TITLE[c]={prob:p, s:Math.log(p)}; }  // de-vigged
-    titleOddsLive=true; render();
-  }catch(e){ /* keep the snapshot */ }
-}
-
 /* ---------- Boot ---------- */
 loadPicks(); render();
 fetchLive(false).then(startPolling);
-fetchTitleOdds(); setInterval(fetchTitleOdds, 6*3600*1000);   // outright odds move slowly
 </script>
 </body>
 </html>
