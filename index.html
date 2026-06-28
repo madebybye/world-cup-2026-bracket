@@ -104,6 +104,7 @@
   .row.picked::before{content:'';position:absolute;left:0;top:0;bottom:0;width:3px;background:var(--clay)}
   .row.picked .nm{font-weight:800}
   .pick-badge{font-size:9px;font-weight:800;letter-spacing:.4px;color:#fff;background:var(--clay);border-radius:4px;padding:1px 5px}
+  .pens-badge{font-size:9px;font-weight:700;letter-spacing:.3px;color:var(--ink2);background:var(--card-top);border:1px solid var(--line2);border-radius:4px;padding:1px 5px;white-space:nowrap}
   .chk{color:var(--sage);font-weight:900;font-size:13px}
   .adv{display:flex;align-items:center;gap:7px;padding:2px 10px 8px}
   .advbar{flex:1;height:5px;border-radius:3px;overflow:hidden;display:flex;background:var(--line)}
@@ -186,8 +187,8 @@
       <span class="k"><span class="tag live">LIVE</span></span>
       <span class="k"><span class="tag final">FINAL</span></span>
     </div>
-    <p><b>Tap any team</b> to send them through — matchups and scores update down the bracket; tap again to undo, or <b>Reset</b>. <b>Who advances is decided by the market:</b> the live per-game ESPN/DraftKings line for games that have one (that’s the win-% bar — hover for the source; auto-updates, including in-play), and the <b>tournament-winner (outright) odds</b> for future rounds that aren’t set yet. Your picks override any game; real <b>final results lock in</b>. The <b>predicted scoreline always matches that winner</b> — the winning margin scales with the odds, the goals come from each team’s group-stage form (opponent-adjusted), so a side that defends well concedes fewer. Future rounds and any matchup you create by picking show <b>just the score, no odds bar</b>.</p>
-    <p><b>Data sources.</b> Fixtures, live scores &amp; final results: <a href="https://www.espn.com/soccer/" target="_blank" rel="noopener">ESPN</a> scoreboard feed (<code>site.api.espn.com</code>, polled live). <b>Per-game win-%:</b> DraftKings 3-way moneyline via that ESPN feed, de-vigged (used pre-match &amp; in-play). <b>Future-round winners:</b> a de-vigged consensus of outright “to win the cup” odds (DraftKings, FanDuel, FOX, Opta) — refreshed live from <a href="https://the-odds-api.com" target="_blank" rel="noopener">the-odds-api</a> when a key is set, otherwise a recent snapshot. <b>Predicted scorelines:</b> winning margin from those odds, goals from each team’s 2026 group-stage attack &amp; defence (opponent-adjusted), eased toward their <a href="https://inside.fifa.com/fifa-world-ranking" target="_blank" rel="noopener">FIFA World Ranking</a>. Not affiliated with FIFA, ESPN or DraftKings.</p>
+    <p><b>Tap any team</b> to send them through — matchups and scores update down the bracket; tap again to undo, or <b>Reset</b>. <b>Who advances is decided by the market:</b> the live per-game ESPN/DraftKings line for games that have one (that’s the win-% bar — hover for the source; auto-updates, including in-play), and the <b>tournament-winner (outright) odds</b> for future rounds that aren’t set yet. Your picks override any game; real <b>final results lock in</b>. The <b>predicted scoreline always matches that winner</b> — the margin scales with the odds, the goals come from each team’s form (opponent-adjusted); a close, even tie may go to <b>penalties</b> (the favourite wins the shootout). Future rounds and any matchup you create by picking show <b>just the score, no odds bar</b>.</p>
+    <p><b>Data sources.</b> Fixtures, live scores &amp; final results: <a href="https://www.espn.com/soccer/" target="_blank" rel="noopener">ESPN</a> scoreboard feed (<code>site.api.espn.com</code>, polled live). <b>Per-game win-%:</b> DraftKings 3-way moneyline via that ESPN feed, de-vigged (used pre-match &amp; in-play). <b>Future-round winners / overall favourites:</b> team strengths fitted continuously to the live per-game lines (re-fits after every game, no key needed), anchored to a de-vigged consensus of outright “to win the cup” odds (DraftKings, FanDuel, FOX, Opta) — that snapshot can also be refreshed live from <a href="https://the-odds-api.com" target="_blank" rel="noopener">the-odds-api</a> if a key is set. <b>Predicted scorelines:</b> winning margin from those odds, goals from each team’s 2026 group-stage attack &amp; defence (opponent-adjusted), eased toward their <a href="https://inside.fifa.com/fifa-world-ranking" target="_blank" rel="noopener">FIFA World Ranking</a>. Not affiliated with FIFA, ESPN or DraftKings.</p>
     <p class="updated" id="updatedAt"></p>
   </div>
 </div>
@@ -310,9 +311,29 @@ const TITLE = {};
 (function(){ let sum=0; for(const c in TITLE_PROB) sum+=TITLE_PROB[c];
   for(const c in TITLE_PROB){ const p=TITLE_PROB[c]/sum; TITLE[c]={prob:p, s:Math.log(p)}; }
 })();
-const tstr = c => (TITLE[c]?TITLE[c].s:Math.log(0.0003));
 const TITLE_SCALE = 1.85;
-// P(a beats b) in one knockout game, from the market's title-odds strength gap
+// Team log-strength: starts from the title-odds prior, then is nudged to AGREE with the
+// live per-game betting lines (current + closing). So the overall-winner view and the
+// future-round projections track the market and re-fit after every game — no extra feed,
+// no key, no daily runs. (A live outright feed via ODDS_API_KEY just sharpens the prior.)
+let SFIT=null;
+function fitStrength(){
+  const S={}; for(const c in TITLE) S[c]=TITLE[c].s;
+  const obs=[];
+  for(const m of BRACKET){ const r=liveRec(m); if(!r||!r.advByTeam) continue;
+    const ks=Object.keys(r.advByTeam); if(ks.length!==2) continue;
+    const [a,b]=ks, pa=r.advByTeam[a];
+    if(pa>0.02&&pa<0.98&&TITLE[a]&&TITLE[b]) obs.push([a,b,TITLE_SCALE*Math.log(pa/(1-pa))]);
+  }
+  for(let it=0;it<30;it++){
+    for(const o of obs){ const e=((S[o[0]]-S[o[1]])-o[2])*0.30; S[o[0]]-=e/2; S[o[1]]+=e/2; }
+    for(const c in S) S[c]+=(TITLE[c].s-S[c])*0.04;     // hold near the title-odds prior
+  }
+  return S;
+}
+const refreshStrength = ()=>{ SFIT=fitStrength(); };
+const tstr = c => (SFIT&&SFIT[c]!=null) ? SFIT[c] : (TITLE[c]?TITLE[c].s:Math.log(0.0003));
+// P(a beats b) in one knockout game, from the (market-fitted) strength gap
 function advProb(a,b){ return 1/(1+Math.exp(-(tstr(a)-tstr(b))/TITLE_SCALE)); }
 
 // To make the outright odds LIVE (auto-updating), paste a free key from the-odds-api.com:
@@ -364,8 +385,11 @@ function scoreFromWinProb(W,L,wp){
   const {xb:xgL}=matchupXG(W,L);
   const n1=hashFrac(W,L)-0.5, n2=hashFrac(L,W)-0.5;
   const gL=clamp(Math.round(xgL*0.72 + n2*1.2), 0, 3);
+  // an even, close tie can finish level and be settled on penalties (the favourite W wins it)
+  const pPens=0.32*(1-Math.min(1,Math.abs(wp-0.5)*2));
+  if(hashFrac(W+'~pk',L) < pPens) return {win:gL, lose:gL, pens:true};
   const margin=clamp(Math.round(0.7 + (wp-0.5)*4.2 + n1*1.4), 1, 4);
-  return {win:clamp(gL+margin,1,6), lose:gL};
+  return {win:clamp(gL+margin,1,6), lose:gL, pens:false};
 }
 // scores are computed LIVE from the CURRENT odds + form, so they auto-update as odds move
 // and teams advance: a real game uses its own per-game line for the margin; every other
@@ -479,8 +503,8 @@ function fmtWhen(m){
   return d.toLocaleDateString(undefined,{weekday:"short",month:"short",day:"numeric"})+" · "+
          d.toLocaleTimeString(undefined,{hour:"numeric",minute:"2-digit"});
 }
-function teamRowHTML(m,side,team,score,role){
-  // role: 'win' | 'lose' | 'pick' | '' ; tbd when no team
+function teamRowHTML(m,side,team,score,role,mark){
+  // role: 'win' | 'lose' | 'pick' | '' ; tbd when no team. mark = extra badge (e.g. pens)
   if(!team){
     return `<div class="row tbd"><div class="fl">—</div><div class="nm">${tbdLabel(m,side)}</div><div class="sc"></div></div>`;
   }
@@ -489,7 +513,7 @@ function teamRowHTML(m,side,team,score,role){
   const badge = role==="pick"?'<span class="pick-badge">PICK</span>': (role==="win"&&isFinal(m))?'<span class="chk">✓</span>':'';
   return `<div class="${cls.join(' ')}" data-node="${m.id}" data-team="${team}">
     <div class="fl">${T.flag||"🏳️"}</div>
-    <div class="nm"><span class="tn">${T.name||team}</span><span class="seed">#${T.rank||"?"}</span>${badge}</div>
+    <div class="nm"><span class="tn">${T.name||team}</span><span class="seed">#${T.rank||"?"}</span>${badge}${mark||""}</div>
     <div class="sc">${score!==null&&score!==undefined?score:""}</div>
   </div>`;
 }
@@ -504,13 +528,14 @@ function matchHTML(m){
   const r=liveRec(m);
 
   // scores per side
-  let scH=null, scA=null;
+  let scH=null, scA=null, pens=false;
   if(r&&(r.state==="in"||r.completed)){
     if(r.byTeam){ if(a!=null) scH=r.byTeam[a]; if(b!=null) scA=r.byTeam[b]; }
   } else if(a&&b&&winner&&m.round!=="3P"){
     const s=scoreFor(m,winner,loser);
     scH = (a===winner)?s.win:s.lose;
     scA = (b===winner)?s.win:s.lose;
+    pens = !!s.pens;
   }
 
   // roles
@@ -540,21 +565,22 @@ function matchHTML(m){
     else if(finished){ foot=`<span>${TEAMS[winner].name} advance</span>`; }
     else if(m.round!=="3P"){
       const up = winner && loser && tstr(winner) < tstr(loser); // odds-underdog winning = upset
-      foot=`<span>predicted ${scH}–${scA}${up?` · <span class="up">upset</span>`:""}</span>`;
+      foot=`<span>predicted ${scH}–${scA}${pens?` · ${TEAMS[winner].name} on pens`:(up?` · <span class="up">upset</span>`:"")}</span>`;
     } else foot=`<span>semifinal losers</span>`;
   } else foot=`<span>awaiting teams</span>`;
   const clr = picked?`<span class="clr" data-clear="${m.id}">undo ✕</span>`:"";
 
   return `<div class="match" data-mid="${m.id}">
     <div class="m-top"><span class="when">${fmtWhen(m)}</span>${tag}</div>
-    ${teamRowHTML(m,"home",a,scH,roleHome)}
-    ${teamRowHTML(m,"away",b,scA,roleAway)}
+    ${teamRowHTML(m,"home",a,scH,roleHome, pens&&winner===a?'<span class="pens-badge">pens ✓</span>':'')}
+    ${teamRowHTML(m,"away",b,scA,roleAway, pens&&winner===b?'<span class="pens-badge">pens ✓</span>':'')}
     ${advbar}
     <div class="m-foot">${foot}<span style="flex:1"></span>${clr}</div>
   </div>`;
 }
 
 function render(){
+  refreshStrength();      // re-fit team strength to the latest betting lines
   refreshProjection();
   let html="";
   ROUND_ORDER.forEach((r,ri)=>{
@@ -586,16 +612,16 @@ function renderThird(){
   const host=$("#thirdHost"); const m=BY_ID["3P-1"];
   const P=PROJ["3P-1"]||{};
   const a=P.home, b=P.away, w=P.winner, l=P.loser;
-  let scH=null,scA=null;
+  let scH=null,scA=null,pens3=false;
   const r=liveRec(m);
   if(r&&(r.state==="in"||r.completed)&&r.byTeam){ if(a)scH=r.byTeam[a]; if(b)scA=r.byTeam[b]; }
-  else if(a&&b&&w){ const s=scoreFor(m,w,l); scH=a===w?s.win:s.lose; scA=b===w?s.win:s.lose; }
+  else if(a&&b&&w){ const s=scoreFor(m,w,l); scH=a===w?s.win:s.lose; scA=b===w?s.win:s.lose; pens3=!!s.pens; }
   host.innerHTML=`<div class="third-wrap">
     <div class="round-head">Third-place playoff</div>
     <div class="match">
-      ${teamRowHTML(m,"home",a,scH,isFinal(m)?(w===a?"win":"lose"):"")}
-      ${teamRowHTML(m,"away",b,scA,isFinal(m)?(w===b?"win":"lose"):"")}
-      <div class="m-foot"><span>${a&&b?(isFinal(m)?TEAMS[w].name+" finish 3rd":"predicted "+scH+"–"+scA):"awaiting semifinals"}</span></div>
+      ${teamRowHTML(m,"home",a,scH,isFinal(m)?(w===a?"win":"lose"):"", pens3&&w===a?'<span class="pens-badge">pens ✓</span>':'')}
+      ${teamRowHTML(m,"away",b,scA,isFinal(m)?(w===b?"win":"lose"):"", pens3&&w===b?'<span class="pens-badge">pens ✓</span>':'')}
+      <div class="m-foot"><span>${a&&b?(isFinal(m)?TEAMS[w].name+" finish 3rd":"predicted "+scH+"–"+scA+(pens3?" · "+TEAMS[w].name+" on pens":"")):"awaiting semifinals"}</span></div>
     </div></div>`;
 }
 
