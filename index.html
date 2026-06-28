@@ -159,6 +159,7 @@
     </div>
     <div class="head-tools">
       <span class="pill" id="liveStatus"><span class="dot" id="liveDot"></span><span id="liveText">Connecting…</span></span>
+      <span class="pill" id="oddsModeChip" style="cursor:default" title="Source of the advancement odds">Odds: <b>live</b></span>
       <button class="pill on" id="autoBtn" title="Toggle live auto-refresh">⟳ Auto <b id="autoState">ON</b></button>
       <button class="btn" id="refreshBtn">Refresh</button>
       <button class="btn" id="resetBtn">Reset</button>
@@ -181,8 +182,8 @@
       <span class="k"><span class="tag live">LIVE</span></span>
       <span class="k"><span class="tag final">FINAL</span></span>
     </div>
-    <p><b>Tap any team</b> to send them through — predicted scores and matchups update down the bracket. A lower-ranked team picked to beat a higher-ranked one is scored as a bigger upset (more goals). Tap again to undo, or <b>Reset</b>.</p>
-    <p><b>Data sources.</b> Fixtures, live scores &amp; final results: <a href="https://www.espn.com/soccer/" target="_blank" rel="noopener">ESPN</a> public scoreboard feed (<code>site.api.espn.com</code>, polled live). Team strength &amp; <b>predicted scorelines</b> are derived from the <a href="https://inside.fifa.com/fifa-world-ranking" target="_blank" rel="noopener">FIFA World Ranking</a> (men's, June 2026); the per-match advancement bar is a ranking-based model estimate, and in-game win probability updates with the live score. Pre-tournament title odds referenced ESPN, FOX Sports, Nate Silver &amp; DraftKings. Not affiliated with FIFA, ESPN or FIFA World Cup.</p>
+    <p><b>Tap any team</b> to send them through — predicted scores and matchups update down the bracket. A lower-ranked team picked to beat a higher-ranked one is scored as a bigger upset (more goals). Tap again to undo, or <b>Reset</b>. <b>Odds:</b> by default the bars show <b>live betting odds</b> (real match odds that update in-play); once you’ve picked <b>2 or more</b> winners the bracket becomes your custom scenario and switches to the <b>FIFA-ranking model</b> for the odds. The chip in the header shows which is active.</p>
+    <p><b>Data sources.</b> Fixtures, live scores &amp; final results: <a href="https://www.espn.com/soccer/" target="_blank" rel="noopener">ESPN</a> scoreboard feed (<code>site.api.espn.com</code>, polled live). <b>Live match odds:</b> DraftKings 3-way moneyline via that ESPN feed, de-vigged to a “to advance” probability (in-play games use a live score-and-time model). <b>Predicted scorelines</b> and the fallback odds model use the <a href="https://inside.fifa.com/fifa-world-ranking" target="_blank" rel="noopener">FIFA World Ranking</a> (men’s, June 2026). Pre-tournament references: ESPN, FOX Sports, Nate Silver &amp; DraftKings. Not affiliated with FIFA, ESPN or DraftKings.</p>
     <p class="updated" id="updatedAt"></p>
   </div>
 </div>
@@ -347,12 +348,33 @@ function computeDist(){
   return dist;
 }
 const only=d=>{const k=Object.keys(d);return (k.length===1&&d[k[0]]>0.999)?k[0]:null;};
+
+// "Custom bracket" mode: once 2+ winners are manually picked, ignore live odds
+// and use the pre-calculated FIFA-ranking model for the whole bracket.
+const precalcMode = ()=> Object.keys(picks).length>=2;
+
+// P(team a advances over team b) for THIS match — the single source of truth
+// for both the bars and the bracket propagation.
+function matchAdvProb(m,a,b){
+  if(!a||!b) return 0.5;
+  const fw=finalWinner(m); if(fw) return fw===a?1:0;          // result locked
+  const pk=picks[m.id]; if(pk===a||pk===b) return pk===a?1:0; // your pick
+  if(!precalcMode()){
+    const r=liveRec(m);
+    if(r&&r.state==="in") return liveModel(a,b,r.gh,r.ga,r.minute).advA;        // live, in-play
+    if(r&&r.advByTeam&&r.advByTeam[a]!=null&&r.advByTeam[b]!=null){             // live market odds
+      const pa=r.advByTeam[a], pb=r.advByTeam[b], s=pa+pb; return s>0?pa/s:0.5;
+    }
+  }
+  return advProb(a,b);                                         // FIFA-ranking model
+}
+
 function nodeWinner(m,dA,dB){
   const out={};
   const fw=finalWinner(m); if(fw){ out[fw]=1; return out; }
   const pk=picks[m.id]; if(pk&&(dA[pk]!==undefined||dB[pk]!==undefined)){ out[pk]=1; return out; }
-  const r=liveRec(m), a=only(dA), b=only(dB);
-  if(r&&r.state==="in"&&a&&b){ const lm=liveModel(a,b,r.gh,r.ga,r.minute); out[a]=lm.advA; out[b]=lm.advB; return out; }
+  const a=only(dA), b=only(dB);
+  if(a&&b){ const p=matchAdvProb(m,a,b); out[a]=p; out[b]=1-p; return out; }
   for(const ta in dA) for(const tb in dB){ if(ta===tb) continue;
     const meet=dA[ta]*dB[tb], p=advProb(ta,tb);
     out[ta]=(out[ta]||0)+meet*p; out[tb]=(out[tb]||0)+meet*(1-p);
@@ -385,12 +407,20 @@ function matchWinner(m,a,b){
   if(!a||!b) return null;
   const fw=finalWinner(m); if(fw) return fw;
   const pk=picks[m.id]; if(pk===a||pk===b) return pk;
-  return rank(a)<=rank(b)?a:b;          // default: better FIFA rank advances
+  return matchAdvProb(m,a,b)>=0.5?a:b;  // follows live odds, or rank model in custom mode
 }
 
 /* ============================== Rendering ============================== */
 const $=s=>document.querySelector(s);
 const pct=x=> x>=0.995?"99%": x<0.005?"1%": Math.round(x*100)+"%";
+function setOddsModeChip(){
+  const chip=$("#oddsModeChip"); if(!chip) return;
+  const n=Object.keys(picks).length;
+  if(precalcMode()){ chip.innerHTML='Odds: <b>model</b>'; chip.style.borderColor='var(--clay)';
+    chip.title=`Custom bracket — you've picked ${n} winners, so the odds use the FIFA-ranking model.`; }
+  else { chip.innerHTML='Odds: <b>live</b>'; chip.style.borderColor='';
+    chip.title='Live DraftKings match odds via ESPN (the model fills in future rounds).'; }
+}
 
 function fmtWhen(m){
   const r=liveRec(m);
@@ -439,14 +469,8 @@ function matchHTML(m){
   const roleHome = finished ? (winner===a?"win":"lose") : (picked===a?"pick":"");
   const roleAway = finished ? (winner===b?"win":"lose") : (picked===b?"pick":"");
 
-  // advance bar
-  let pa=0.5;
-  if(a&&b){
-    if(finished) pa=winner===a?1:0;
-    else if(picked) pa=picked===a?1:(picked===b?0:advProb(a,b));
-    else if(r&&r.state==="in") pa=liveModel(a,b,r.gh,r.ga,r.minute).advA;
-    else pa=advProb(a,b);
-  }
+  // advance bar — matchAdvProb returns live odds, or the model in custom-bracket mode
+  const pa=(a&&b)?matchAdvProb(m,a,b):0.5;
   const pb=1-pa;
   const advbar=(a&&b)?`<div class="adv"><span class="advlab">${pct(pa)}</span>
      <div class="advbar"><i class="a" style="width:${pa*100}%"></i><i class="b" style="width:${pb*100}%"></i></div>
@@ -497,6 +521,7 @@ function render(){
       `<div class="winner-banner"><div class="lbl">${fdone?"World Champions":"Projected Winner"}</div>
        <div class="who">${T.flag} ${T.name}</div></div>`);
   }
+  setOddsModeChip();
   renderThird();
   attachHandlers();
 }
@@ -568,6 +593,18 @@ function parseMinute(clock,detail){
   if(detail&&/Half/i.test(detail)) return 45;
   return 60;
 }
+const amToProb=o=>{const n=typeof o==="string"?parseInt(o,10):o;return isNaN(n)?null:(n<0?(-n)/((-n)+100):100/(n+100));};
+const sideProb=s=>{ if(!s) return null; const c=s.current||s.close||s.open; return c?amToProb(c.odds):null; };
+// 3-way DraftKings moneyline (via ESPN) -> de-vigged "to advance" probability per team
+function marketAdvByTeam(comp,homeAbbr,awayAbbr){
+  const o=comp&&comp.odds&&comp.odds[0]&&comp.odds[0].moneyline; if(!o) return null;
+  const ph=sideProb(o.home), pa=sideProb(o.away), pd=sideProb(o.draw);
+  if(ph==null||pa==null) return null;
+  const draw=pd!=null?pd:0, s=ph+pa+draw; if(s<=0) return null;
+  const nh=ph/s, na=pa/s, nd=draw/s, base=nh+na;
+  const advH = base>0 ? nh + nd*(nh/base) : 0.5;        // allocate the draw by relative strength
+  const out={}; out[homeAbbr]=advH; out[awayAbbr]=1-advH; return out;
+}
 async function fetchLive(manual){
   try{
     const res=await fetch(ESPN_URL,{cache:"no-store"}); if(!res.ok) throw new Error("HTTP "+res.status);
@@ -582,9 +619,10 @@ async function fetchLive(manual){
       if(st.state==="post"){ const w=comp.competitors.find(c=>c.winner===true);
         winner=w?w.team.abbreviation:(gh>ga?hs.team.abbreviation:ga>gh?as.team.abbreviation:null); }
       const byTeam={}; byTeam[hs.team.abbreviation]=gh; byTeam[as.team.abbreviation]=ga;
+      const advByTeam=marketAdvByTeam(comp, hs.team.abbreviation, as.team.abbreviation);
       next[String(ev.id)]={ state:st.state, completed:!!st.completed, winner,
         note: st.state==="post"&&/pen|shootout/i.test(st.detail||"")?"(pens)":"",
-        gh,ga,byTeam,
+        gh,ga,byTeam,advByTeam,
         clock: st.state==="in"?(ev.status.displayClock||"LIVE"):"",
         minute: parseMinute(ev.status&&ev.status.displayClock, st.detail) };
     }
