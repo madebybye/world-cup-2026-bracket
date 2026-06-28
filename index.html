@@ -186,8 +186,8 @@
       <span class="k"><span class="tag live">LIVE</span></span>
       <span class="k"><span class="tag final">FINAL</span></span>
     </div>
-    <p><b>Tap any team</b> to send them through — matchups and scores update down the bracket; tap again to undo, or <b>Reset</b>. <b>Who advances</b> defaults to the <b>live ESPN/DraftKings odds</b>, which auto-update as games play; the win-% bar appears <em>only</em> on games that have those odds (hover it for the source). Future rounds, and any matchup you create by picking, show <b>just the predicted score — no odds</b>. The <b>predicted scoreline always matches the projected winner</b> (the odds favourite, or your pick), so the two never disagree — it’s a form model: each team’s 2026 group-stage attack &amp; defence, opponent-adjusted and eased toward their ranking, so a side that has defended well concedes fewer. Real <b>final results lock in</b>.</p>
-    <p><b>Data sources.</b> Fixtures, live scores &amp; final results: <a href="https://www.espn.com/soccer/" target="_blank" rel="noopener">ESPN</a> scoreboard feed (<code>site.api.espn.com</code>, polled live). <b>Win-% / who advances:</b> DraftKings 3-way moneyline via that ESPN feed, de-vigged to a “to advance” probability (used pre-match &amp; in-play; a score-and-time model is only a fallback if a live game has no odds). <b>Predicted scorelines &amp; form model:</b> each team’s 2026 World Cup group-stage goals for &amp; against (3 games), opponent-adjusted and shrunk toward their <a href="https://inside.fifa.com/fifa-world-ranking" target="_blank" rel="noopener">FIFA World Ranking</a> (men’s, June 2026). Not affiliated with FIFA, ESPN or DraftKings.</p>
+    <p><b>Tap any team</b> to send them through — matchups and scores update down the bracket; tap again to undo, or <b>Reset</b>. <b>Who advances is decided by the market:</b> the live per-game ESPN/DraftKings line for games that have one (that’s the win-% bar — hover for the source; auto-updates, including in-play), and the <b>tournament-winner (outright) odds</b> for future rounds that aren’t set yet. Your picks override any game; real <b>final results lock in</b>. The <b>predicted scoreline always matches that winner</b> — the winning margin scales with the odds, the goals come from each team’s group-stage form (opponent-adjusted), so a side that defends well concedes fewer. Future rounds and any matchup you create by picking show <b>just the score, no odds bar</b>.</p>
+    <p><b>Data sources.</b> Fixtures, live scores &amp; final results: <a href="https://www.espn.com/soccer/" target="_blank" rel="noopener">ESPN</a> scoreboard feed (<code>site.api.espn.com</code>, polled live). <b>Per-game win-%:</b> DraftKings 3-way moneyline via that ESPN feed, de-vigged (used pre-match &amp; in-play). <b>Future-round winners:</b> a de-vigged consensus of outright “to win the cup” odds (DraftKings, FanDuel, FOX, Opta). <b>Predicted scorelines:</b> winning margin from those odds, goals from each team’s 2026 group-stage attack &amp; defence (opponent-adjusted), eased toward their <a href="https://inside.fifa.com/fifa-world-ranking" target="_blank" rel="noopener">FIFA World Ranking</a>. Not affiliated with FIFA, ESPN or DraftKings.</p>
     <p class="updated" id="updatedAt"></p>
   </div>
 </div>
@@ -293,6 +293,28 @@ function hashFrac(a,b){
   return (h>>>0)/4294967296;
 }
 
+/* ---------- MARKET TITLE ODDS — decide who wins each game ---------------------
+   De-vigged consensus probability to WIN the cup (median across DraftKings,
+   FanDuel, FOX, Opta etc., normalised to sum to 1). A log-strength from these
+   decides head-to-head winners for games that don't yet have their own live
+   ESPN/DraftKings line (i.e. future rounds); real games still use their own live
+   line. TITLE_SCALE is fit so these reproduce the actual R32 "to advance" lines.  */
+const TITLE_PROB = {
+  FRA:0.1952, ARG:0.162,  ESP:0.1056, ENG:0.1056, POR:0.0633, BRA:0.0629, NED:0.0481,
+  GER:0.041,  USA:0.0289, COL:0.0241, NOR:0.0234, BEL:0.0199, MAR:0.0169, MEX:0.016,
+  JPN:0.016,  SUI:0.0122, SEN:0.0081, CRO:0.0077, ECU:0.0065, CIV:0.0058, CAN:0.0048,
+  AUS:0.0041, AUT:0.0033, SWE:0.0033, EGY:0.0033, ALG:0.0027, GHA:0.0023, PAR:0.0016,
+  BIH:0.0016, COD:0.0012, RSA:0.0012, CPV:0.0012,
+};
+const TITLE = {};
+(function(){ let sum=0; for(const c in TITLE_PROB) sum+=TITLE_PROB[c];
+  for(const c in TITLE_PROB){ const p=TITLE_PROB[c]/sum; TITLE[c]={prob:p, s:Math.log(p)}; }
+})();
+const tstr = c => (TITLE[c]?TITLE[c].s:Math.log(0.0003));
+const TITLE_SCALE = 1.85;
+// P(a beats b) in one knockout game, from the market's title-odds strength gap
+function advProb(a,b){ return 1/(1+Math.exp(-(tstr(a)-tstr(b))/TITLE_SCALE)); }
+
 /* ---------- FORM SCORING MODEL ------------------------------------------------
    Each team's group-stage goals-for / goals-against (3 real games) are shrunk
    toward a ranking-based prior, giving an attack rate and a "goals conceded"
@@ -321,26 +343,23 @@ const FORM = {
 };
 function matchupXG(a,b){ return { xa:KBASE*attMult(a)*defMult(b), xb:KBASE*attMult(b)*defMult(a) }; }
 
-// predicted scoreline for a decided match, shown from the WINNER's side
-function formScore(W,L){
-  const {xa:xW, xb:xL}=matchupXG(W,L);
-  const n1=hashFrac(W,L)-0.5, n2=hashFrac(L,W)-0.5;      // per-matchup spread
-  const gL=clamp(Math.round(xL*0.62 + n2*1.3), 0, 3);    // loser's goals — often a shutout
-  const margin=clamp(Math.round(0.5 + (xW-xL)*0.95 + n1*1.7), 1, 4); // winner edge ~ form gap
+// predicted scoreline for a decided match (W beats L): the winning MARGIN comes from
+// the WIN PROBABILITY (the odds), the loser's goals from form (their attack vs W's
+// defence). Always shows W ahead, so the score can't disagree with the odds winner.
+function scoreFromWinProb(W,L,wp){
+  const {xb:xgL}=matchupXG(W,L);
+  const n1=hashFrac(W,L)-0.5, n2=hashFrac(L,W)-0.5;
+  const gL=clamp(Math.round(xgL*0.72 + n2*1.2), 0, 3);
+  const margin=clamp(Math.round(0.7 + (wp-0.5)*4.2 + n1*1.4), 1, 4);
   return {win:clamp(gL+margin,1,6), lose:gL};
 }
+// pre-compute every ordered pair using the TITLE-odds win prob (future-round default)
 const SCORES={};
-function buildScores(){ for(const w in TEAMS){ SCORES[w]={}; for(const l in TEAMS){ if(w===l) continue; SCORES[w][l]=formScore(w,l); } } }
+function buildScores(){ for(const w in TEAMS){ SCORES[w]={}; for(const l in TEAMS){ if(w===l) continue; SCORES[w][l]=scoreFromWinProb(w,l,advProb(w,l)); } } }
 buildScores();
 const lookScore = (w,l)=> (SCORES[w]&&SCORES[w][l]) ? SCORES[w][l] : {win:1,lose:0};
 
-// P(a advances past b) from the form model's expected goals (incl. ET/pens)
-function advProb(a,b){
-  const {xa,xb}=matchupXG(a,b);
-  let wa=0,dr=0,wb=0;
-  for(let i=0;i<=8;i++){ const pi=pois(i,xa); for(let j=0;j<=8;j++){ const p=pi*pois(j,xb); if(i>j)wa+=p; else if(i<j)wb+=p; else dr+=p; } }
-  return wa + dr*(xa+xb>0?xa/(xa+xb):0.5);
-}
+// (advProb is defined above, from the market title odds)
 
 // in-game live model: expected goals tilted by rank gap, Poisson on remaining time
 const FACT=[1,1,2,6,24,120,720,5040,40320,362880];
@@ -468,7 +487,11 @@ function matchHTML(m){
   if(r&&(r.state==="in"||r.completed)){
     if(r.byTeam){ if(a!=null) scH=r.byTeam[a]; if(b!=null) scA=r.byTeam[b]; }
   } else if(a&&b&&winner&&m.round!=="3P"){
-    const s=lookScore(winner,loser);
+    let s;
+    if(hasOdds(m,a,b) && !picks[m.id]){          // real game w/ a live line -> margin from ITS odds
+      const ab=liveRec(m).advByTeam, tot=ab[a]+ab[b], wp=(winner===a?ab[a]:ab[b])/tot;
+      s=scoreFromWinProb(winner,loser,wp);
+    } else s=lookScore(winner,loser);            // future / picked -> pre-computed title-odds pair
     scH = (a===winner)?s.win:s.lose;
     scA = (b===winner)?s.win:s.lose;
   }
@@ -499,7 +522,7 @@ function matchHTML(m){
     if(r&&r.state==="in"){ const lm=liveModel(a,b,r.gh,r.ga,r.minute); foot=`<span>proj ${Math.round(lm.projA)}–${Math.round(lm.projB)} final</span>`; }
     else if(finished){ foot=`<span>${TEAMS[winner].name} advance</span>`; }
     else if(m.round!=="3P"){
-      const up = winner && loser && rank(winner)>rank(loser);   // lower-ranked team winning = upset
+      const up = winner && loser && tstr(winner) < tstr(loser); // odds-underdog winning = upset
       foot=`<span>predicted ${scH}–${scA}${up?` · <span class="up">upset</span>`:""}</span>`;
     } else foot=`<span>semifinal losers</span>`;
   } else foot=`<span>awaiting teams</span>`;
