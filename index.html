@@ -7,23 +7,23 @@
 <meta name="description" content="Minimal interactive 2026 FIFA World Cup knockout bracket: live scores, FIFA-ranking predicted scorelines, and pick-your-winner overrides." />
 <style>
   :root{
-    --bg:#f5f1e8;            /* off-white */
-    --card:#ece2cd;          /* light sand */
-    --card2:#e6dac1;         /* sand, slightly deeper */
-    --card-top:#e1d4b6;      /* card header strip */
-    --ink:#2c2820;           /* near-black warm */
-    --ink2:#6f6754;          /* muted */
-    --ink3:#9b927c;          /* faint */
-    --line:#d8caac;          /* sand border */
-    --line2:#cabb98;
-    --sage:#5d8a6e;          /* advancing / model winner */
-    --sage-soft:#9cbCAA;
-    --clay:#bd6a3c;          /* user pick */
+    --bg:#F1F3E0;            /* light pitch green */
+    --card:#D2DCB6;          /* card green */
+    --card2:#c5d1a4;         /* deeper card (loser/hover) */
+    --card-top:#A1BC98;      /* card header strip */
+    --ink:#36412c;           /* dark green text */
+    --ink2:#5f6e50;          /* muted */
+    --ink3:#8d9a7e;          /* faint */
+    --line:#bcca9e;          /* border */
+    --line2:#A1BC98;
+    --sage:#4f7a3f;          /* advancing / model winner */
+    --sage-soft:#A1BC98;
+    --clay:#c06b3b;          /* user pick (warm contrast) */
     --live:#c0432f;          /* live red */
-    --barA:#6f9b81;          /* top-side advance */
-    --barB:#cbb389;          /* bottom-side advance */
+    --barA:#5f7d4e;          /* top-side advance */
+    --barB:#A1BC98;          /* bottom-side advance */
     --r32w:204px; --colgap:48px;
-    --shadow:0 1px 2px rgba(60,50,30,.06), 0 6px 18px rgba(80,65,35,.05);
+    --shadow:0 1px 2px rgba(50,65,35,.07), 0 6px 18px rgba(70,90,45,.06);
   }
   *{box-sizing:border-box}
   html,body{margin:0;padding:0}
@@ -38,7 +38,7 @@
   .wrap{max-width:1500px;margin:0 auto;padding:0 18px 40px}
 
   /* ---- Header ---- */
-  header{position:sticky;top:0;z-index:40;background:rgba(245,241,232,.9);backdrop-filter:blur(8px);
+  header{position:sticky;top:0;z-index:40;background:rgba(241,243,224,.92);backdrop-filter:blur(8px);
     border-bottom:1px solid var(--line)}
   .head-in{max-width:1500px;margin:0 auto;padding:13px 18px;display:flex;align-items:center;gap:16px;flex-wrap:wrap}
   .brand h1{font-size:17px;margin:0;font-weight:700;letter-spacing:-.2px}
@@ -64,7 +64,7 @@
   .acc-chip{cursor:default;font-variant-numeric:tabular-nums}
   .acc-chip b{color:var(--sage)}
   .acc{font-size:10px;font-weight:800;letter-spacing:.3px;padding:2px 6px;border-radius:5px}
-  .acc.ok{background:rgba(93,138,110,.16);color:var(--sage);border:1px solid rgba(93,138,110,.35)}
+  .acc.ok{background:rgba(79,122,63,.16);color:var(--sage);border:1px solid rgba(79,122,63,.35)}
   .acc.part{background:rgba(189,140,60,.14);color:#a9712a;border:1px solid rgba(189,140,60,.35)}
   .acc.no{background:rgba(192,67,47,.12);color:var(--live);border:1px solid rgba(192,67,47,.3)}
   .acc.pend{color:var(--ink3);border:1px solid var(--line2)}
@@ -131,12 +131,12 @@
   .match:hover .m-foot .clr{opacity:1}
   .tag{display:inline-block;font-size:9.5px;font-weight:800;letter-spacing:.4px;padding:2px 6px;border-radius:5px}
   .tag.live{background:rgba(192,67,47,.12);color:var(--live);border:1px solid rgba(192,67,47,.3)}
-  .tag.final{background:rgba(93,138,110,.14);color:var(--sage);border:1px solid rgba(93,138,110,.32)}
+  .tag.final{background:rgba(79,122,63,.14);color:var(--sage);border:1px solid rgba(79,122,63,.32)}
 
   .champ-cell .match{border-color:var(--line2);box-shadow:0 0 0 1px var(--line2),var(--shadow)}
   .champ-col{flex:0 0 192px;min-width:192px}
   .winner-banner{margin:0;text-align:center;padding:14px 12px;border-radius:12px;
-    background:linear-gradient(180deg,#efe6cf,var(--card2));border:1px solid var(--line2);box-shadow:var(--shadow)}
+    background:linear-gradient(180deg,#e3ecca,var(--card2));border:1px solid var(--line2);box-shadow:var(--shadow)}
   .winner-banner .trophy{font-size:24px;line-height:1;margin-bottom:4px}
   .winner-banner .lbl{font-size:10px;letter-spacing:2px;text-transform:uppercase;color:var(--ink2)}
   .winner-banner .who{font-size:18px;font-weight:800;margin-top:5px;display:flex;align-items:center;justify-content:center;gap:9px;flex-wrap:wrap}
@@ -279,8 +279,8 @@ const BRACKET = [
   {id:"R32-15",round:"R32",slot:15,espnId:"760500",date:"2026-07-03T22:00Z",home:{team:"ARG"},away:{team:"CPV"}},
   {id:"R32-16",round:"R32",slot:16,espnId:"760501",date:"2026-07-04T01:30Z",home:{team:"COL"},away:{team:"GHA"}},
   {id:"R16-1",round:"R16",slot:1,espnId:"760502",date:"2026-07-04T17:00Z",home:{feed:"R32-1"},away:{feed:"R32-3"}},
-  {id:"R16-2",round:"R16",slot:2,espnId:"760503",date:"2026-07-04T21:00Z",home:{feed:"R32-2"},away:{feed:"R32-5"}},
-  {id:"R16-3",round:"R16",slot:3,espnId:"760504",date:"2026-07-05T20:00Z",home:{feed:"R32-4"},away:{feed:"R32-6"}},
+  {id:"R16-2",round:"R16",slot:2,espnId:"760504",date:"2026-07-05T20:00Z",home:{feed:"R32-4"},away:{feed:"R32-6"}},
+  {id:"R16-3",round:"R16",slot:3,espnId:"760503",date:"2026-07-04T21:00Z",home:{feed:"R32-2"},away:{feed:"R32-5"}},
   {id:"R16-4",round:"R16",slot:4,espnId:"760505",date:"2026-07-06T00:00Z",home:{feed:"R32-7"},away:{feed:"R32-8"}},
   {id:"R16-5",round:"R16",slot:5,espnId:"760506",date:"2026-07-06T19:00Z",home:{feed:"R32-11"},away:{feed:"R32-12"}},
   {id:"R16-6",round:"R16",slot:6,espnId:"760507",date:"2026-07-07T00:00Z",home:{feed:"R32-9"},away:{feed:"R32-10"}},
@@ -610,10 +610,11 @@ function matchHTML(m){
     if(r&&r.state==="in"){ const lm=liveModel(a,b,r.gh,r.ga,r.minute); foot=`<span>proj ${Math.round(lm.projA)}–${Math.round(lm.projB)} final</span>`; }
     else if(finished){ foot=`<span>${TEAMS[winner].name} advance</span>`; }
     else if(m.round!=="3P"){
-      const up = winner && loser && tstr(winner) < tstr(loser); // odds-underdog winning = upset
-      foot=`<span>predicted ${scH}–${scA}${pens?` · ${TEAMS[winner].name} on pens`:(up?` · <span class="up">upset</span>`:"")}</span>`;
-    } else foot=`<span>semifinal losers</span>`;
-  } else foot=`<span>awaiting teams</span>`;
+      // rows already show the predicted score, so only flag pens / an upset here
+      const up = winner && loser && tstr(winner) < tstr(loser);
+      foot = pens ? `<span>${TEAMS[winner].name} on pens</span>` : (up ? `<span class="up">upset</span>` : "");
+    } else foot="";
+  } else foot="";
   const clr = picked?`<span class="clr" data-clear="${m.id}">undo ✕</span>`:"";
 
   return `<div class="match" data-mid="${m.id}">
@@ -621,7 +622,7 @@ function matchHTML(m){
     ${teamRowHTML(m,"home",a,scH,roleHome, pens&&winner===a?'<span class="pens-badge">pens ✓</span>':'')}
     ${teamRowHTML(m,"away",b,scA,roleAway, pens&&winner===b?'<span class="pens-badge">pens ✓</span>':'')}
     ${advbar}
-    <div class="m-foot">${foot}<span style="flex:1"></span>${clr}</div>
+    ${(foot||clr)?`<div class="m-foot">${foot}<span style="flex:1"></span>${clr}</div>`:""}
   </div>`;
 }
 
@@ -671,7 +672,7 @@ function matchCardPredicted(m){
     <div class="m-top"><span class="when">${when}</span>${badge}</div>
     ${predRow(P.home,P.sH,P.home===P.winner)}
     ${predRow(P.away,P.sA,P.away===P.winner)}
-    <div class="m-foot pred-foot"><span>predicted ${P.pw}–${P.pl}${P.pens?' (pens)':''}</span>${actual}</div>
+    <div class="m-foot pred-foot">${P.pens?`<span>${TEAMS[P.winner].name} on pens</span>`:''}${actual}</div>
   </div>`;
 }
 function setAccChip(){
