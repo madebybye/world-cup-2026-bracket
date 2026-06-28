@@ -129,7 +129,8 @@
 
   /* ---- Footer / sources ---- */
   .sources{margin-top:34px;padding-top:18px;border-top:1px solid var(--line);font-size:11.5px;color:var(--ink2);
-    line-height:1.7;max-width:880px}
+    line-height:1.7;width:100%}
+  .sources p{max-width:1040px}
   .sources b{color:var(--ink)}
   .sources .updated{color:var(--ink3)}
   .legend{margin:6px 0 2px;color:var(--ink2)}
@@ -184,7 +185,7 @@
       <span class="k"><span class="tag live">LIVE</span></span>
       <span class="k"><span class="tag final">FINAL</span></span>
     </div>
-    <p><b>Tap any team</b> to send them through — predicted scores and matchups update down the bracket. A lower-ranked team picked to beat a higher-ranked one is scored as a bigger upset (more goals). Tap again to undo, or <b>Reset</b>. <b>Odds:</b> by default the bars show <b>live betting odds</b> (real match odds that update in-play); once you’ve picked <b>2 or more</b> winners the bracket becomes your custom scenario and switches to the <b>FIFA-ranking model</b> for the odds. The chip in the header shows which is active.</p>
+    <p><b>Tap any team</b> to send them through — predicted scores and matchups update down the bracket. A lower-ranked team picked to beat a higher-ranked one is scored as a bigger upset (more goals). Tap again to undo, or <b>Reset</b>. <b>Odds:</b> with no picks the bars show <b>live betting odds</b> that auto-update (including in-play), and the favourite is projected to advance. The moment you pick a winner it’s <b>your</b> bracket, so it switches to the steady <b>FIFA-ranking model</b> (which fills the future rounds anyway) and stops shifting under you — though real <b>final results always lock in</b>. The chip in the header shows which is active.</p>
     <p><b>Data sources.</b> Fixtures, live scores &amp; final results: <a href="https://www.espn.com/soccer/" target="_blank" rel="noopener">ESPN</a> scoreboard feed (<code>site.api.espn.com</code>, polled live). <b>Live match odds:</b> DraftKings 3-way moneyline via that ESPN feed, de-vigged to a “to advance” probability (in-play games use a live score-and-time model). <b>Predicted scorelines</b> and the fallback odds model use the <a href="https://inside.fifa.com/fifa-world-ranking" target="_blank" rel="noopener">FIFA World Ranking</a> (men’s, June 2026). Pre-tournament references: ESPN, FOX Sports, Nate Silver &amp; DraftKings. Not affiliated with FIFA, ESPN or DraftKings.</p>
     <p class="updated" id="updatedAt"></p>
   </div>
@@ -338,9 +339,9 @@ const isFinal=m=>{const r=liveRec(m);return r&&r.completed&&r.winner;};
 const finalWinner=m=>{const r=liveRec(m);return (r&&r.completed)?r.winner:null;};
 
 /* ---------- Deterministic bracket projection ---------- */
-// "Custom bracket" mode: once 2+ winners are manually picked, ignore live odds
-// and use the pre-calculated FIFA-ranking model for the whole bracket.
-const precalcMode = ()=> Object.keys(picks).length>=2;
+// "Custom bracket" mode: the moment you make any manual pick, stop letting the
+// auto-updating live odds shift your bracket and use the FIFA-ranking model.
+const precalcMode = ()=> Object.keys(picks).length>=1;
 
 // P(team a advances over team b) for THIS match — single source of truth for the
 // odds bar AND for deciding which team advances (so they can never disagree).
@@ -400,9 +401,9 @@ function setOddsModeChip(){
   const chip=$("#oddsModeChip"); if(!chip) return;
   const n=Object.keys(picks).length;
   if(precalcMode()){ chip.innerHTML='Odds: <b>model</b>'; chip.style.borderColor='var(--clay)';
-    chip.title=`Custom bracket — you've picked ${n} winners, so the odds use the FIFA-ranking model.`; }
+    chip.title=`Your bracket (${n} pick${n===1?'':'s'}) — odds use the FIFA-ranking model so it stops shifting under you. Real results still lock.`; }
   else { chip.innerHTML='Odds: <b>live</b>'; chip.style.borderColor='';
-    chip.title='Live DraftKings match odds via ESPN (the model fills in future rounds).'; }
+    chip.title='Live DraftKings odds via ESPN, auto-updating (including in-play). The model fills future rounds.'; }
 }
 
 function fmtWhen(m){
