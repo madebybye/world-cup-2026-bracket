@@ -1,10 +1,18 @@
-# World Cup 2026 — Live Interactive Bracket
+# World Cup 2026 — Knockout Bracket
 
-A single-page interactive bracket for the 2026 FIFA World Cup knockout stage (Round of 32 → Final).
+A minimal, single-file interactive bracket for the 2026 FIFA World Cup knockout stage (Round of 32 → Final). No build step, no dependencies — just open `index.html`.
 
-- **Predicted scorelines** and **advancement odds** for every matchup, driven by a power-rating model.
-- **Live updates** during games via ESPN's public scoreboard feed: in-game win probability, projected final score, and automatic result-locking at full-time.
-- **Title odds** for all 32 teams (each team's chance to reach every round / win it all), recomputed via bracket-probability propagation.
-- **Pick overrides**: click any team to send them through — the whole bracket and all odds update instantly. Picks are shareable via the URL.
+**Live:** https://madebybye.github.io/world-cup-2026-bracket/
 
-Open `index.html` — no build step, no dependencies.
+## Features
+- **Live during games** — polls ESPN's public scoreboard feed: in-game win probability, projected final score, and automatic result-locking at full-time (the whole bracket recomputes).
+- **FIFA-ranking predicted scorelines** — every matchup's score is a function of the two teams' FIFA world rankings. Picking a lower-ranked team to beat a higher-ranked one is scored as a bigger upset (more goals); all 496 ordered matchups are pre-computed at load.
+- **Pick overrides** — tap any team to send them through; downstream matchups, scores and the advancement bars update instantly. Picks persist and are shareable via the URL.
+- Minimal light theme; responsive down to mobile.
+
+## Data sources
+- Fixtures, live scores & results: **ESPN** (`site.api.espn.com`).
+- Team strength & predicted scorelines: **FIFA World Ranking** (men's, June 2026).
+- The bracket structure, wiring and ESPN event IDs are derived deterministically from the ESPN feed.
+
+Not affiliated with FIFA or ESPN.
