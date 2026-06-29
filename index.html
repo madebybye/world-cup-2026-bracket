@@ -4,7 +4,22 @@
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1" />
 <title>World Cup 2026 — Knockout Bracket</title>
-<meta name="description" content="Minimal interactive 2026 FIFA World Cup knockout bracket: live scores, FIFA-ranking predicted scorelines, and pick-your-winner overrides." />
+<meta name="description" content="Live, auto-updating 2026 FIFA World Cup knockout bracket: real scores, betting-odds win probabilities, predicted scorelines, and pick-your-winner overrides." />
+<link rel="canonical" href="https://madebybye.github.io/world-cup-2026-bracket/" />
+<!-- Social share cards (link is built to be shared with your picks in the URL) -->
+<meta property="og:type" content="website" />
+<meta property="og:site_name" content="World Cup 2026 Bracket" />
+<meta property="og:title" content="World Cup 2026 · Live Knockout Bracket" />
+<meta property="og:description" content="Auto-updating Round of 32 → Final: live scores, betting-odds win %, predicted scorelines, and make your own picks." />
+<meta property="og:url" content="https://madebybye.github.io/world-cup-2026-bracket/" />
+<meta property="og:image" content="https://madebybye.github.io/world-cup-2026-bracket/og-cover.png" />
+<meta property="og:image:width" content="1200" />
+<meta property="og:image:height" content="630" />
+<meta name="twitter:card" content="summary_large_image" />
+<meta name="twitter:title" content="World Cup 2026 · Live Knockout Bracket" />
+<meta name="twitter:description" content="Auto-updating Round of 32 → Final: live scores, betting-odds win %, predicted scorelines, and make your own picks." />
+<meta name="twitter:image" content="https://madebybye.github.io/world-cup-2026-bracket/og-cover.png" />
+<meta name="theme-color" content="#F1F3E0" />
 <style>
   :root{
     --bg:#F1F3E0;            /* light pitch green */
@@ -12,16 +27,16 @@
     --card2:#c5d1a4;         /* deeper card (loser/hover) */
     --card-top:#A1BC98;      /* card header strip */
     --ink:#36412c;           /* dark green text */
-    --ink2:#5f6e50;          /* muted */
-    --ink3:#8d9a7e;          /* faint */
+    --ink2:#4a5740;          /* muted (WCAG-safe on cards) */
+    --ink3:#5e6c46;          /* faint but readable */
     --line:#bcca9e;          /* border */
     --line2:#A1BC98;
     --sage:#4f7a3f;          /* advancing / model winner */
     --sage-soft:#A1BC98;
-    --clay:#c06b3b;          /* user pick (warm contrast) */
-    --live:#c0432f;          /* live red */
-    --barA:#5f7d4e;          /* top-side advance */
-    --barB:#A1BC98;          /* bottom-side advance */
+    --clay:#b85f2e;          /* user pick (warm contrast) */
+    --live:#bd3f2c;          /* live red */
+    --barA:#416e34;          /* favoured side (dark) */
+    --barB:#a7c089;          /* other side (light) — lightness gap reads for colourblind users */
     --r32w:204px; --colgap:48px;
     --shadow:0 1px 2px rgba(50,65,35,.07), 0 6px 18px rgba(70,90,45,.06);
   }
@@ -68,13 +83,20 @@
   .acc.part{background:rgba(189,140,60,.14);color:#a9712a;border:1px solid rgba(189,140,60,.35)}
   .acc.no{background:rgba(192,67,47,.12);color:var(--live);border:1px solid rgba(192,67,47,.3)}
   .acc.pend{color:var(--ink3);border:1px solid var(--line2)}
-  .pred-foot{flex-direction:column;align-items:flex-start;gap:3px}
-  .pred-foot .actual{color:var(--ink2)}
-  .pred-foot .actual .fl{font-size:13px}
-  .pred-foot .actual b{color:var(--ink);font-variant-numeric:tabular-nums}
+  .pred-foot{flex-direction:column;align-items:stretch;gap:3px}
+  .pred-foot .pa{display:flex;align-items:baseline;gap:7px}
+  .pred-foot .pa-lab{font-size:9px;text-transform:uppercase;letter-spacing:.5px;color:var(--ink3);font-weight:700;min-width:36px}
+  .pred-foot .pa b{color:var(--ink);font-variant-numeric:tabular-nums;font-weight:800}
+  .pred-foot .pa.act.ok b{color:var(--sage)}
+  .pred-foot .pa.act.no b{color:var(--live)}
+  .pred-foot .pa.await{color:var(--ink3)}
+  .pred-foot .pa-pk{color:var(--ink3)}
+  .row.tbd .cand{font-size:13px;opacity:.75;letter-spacing:-1px}
 
   /* ---- Bracket ---- */
-  .scroll-hint{display:none;font-size:11.5px;color:var(--ink3);margin:14px 2px 0}
+  .scroll-hint{display:block;font-size:11.5px;color:var(--ink3);margin:12px 2px 0}
+  .sr-only{position:absolute;width:1px;height:1px;padding:0;margin:-1px;overflow:hidden;clip:rect(0,0,0,0);white-space:nowrap;border:0}
+  .round-head .hedge,.minitab .hedge{color:var(--clay);font-weight:800;cursor:help;margin-left:1px}
   .bracket-scroll{overflow-x:auto;overflow-y:hidden;padding:14px 2px 8px;-webkit-overflow-scrolling:touch;scrollbar-width:thin}
   .bracket{display:flex;min-width:max-content;gap:var(--colgap)}
   .round{display:flex;flex-direction:column;flex:0 0 var(--r32w);min-width:var(--r32w)}
@@ -128,8 +150,8 @@
   .advlab{font-size:10px;color:var(--ink3);font-variant-numeric:tabular-nums;white-space:nowrap}
   .m-foot{display:flex;justify-content:space-between;align-items:center;gap:6px;padding:0 10px 8px;font-size:10.5px;color:var(--ink2)}
   .m-foot .up{color:var(--clay);font-weight:700}
-  .m-foot .clr{cursor:pointer;color:var(--clay);font-weight:600;opacity:0;transition:.12s;white-space:nowrap}
-  .match:hover .m-foot .clr{opacity:1}
+  .m-foot .clr{cursor:pointer;color:var(--clay);font-weight:700;transition:.12s;white-space:nowrap}
+  @media(hover:hover){ .m-foot .clr{opacity:0} .match:hover .m-foot .clr{opacity:1} }
   .tag{display:inline-block;font-size:9.5px;font-weight:800;letter-spacing:.4px;padding:2px 6px;border-radius:5px}
   .tag.live{background:rgba(192,67,47,.12);color:var(--live);border:1px solid rgba(192,67,47,.3)}
   .tag.final{background:rgba(79,122,63,.14);color:var(--sage);border:1px solid rgba(79,122,63,.32)}
@@ -150,9 +172,6 @@
   .winner-banner .lbl{font-size:10px;letter-spacing:2px;text-transform:uppercase;color:var(--ink2)}
   .winner-banner .who{font-size:18px;font-weight:800;margin-top:5px;display:flex;align-items:center;justify-content:center;gap:9px;flex-wrap:wrap}
 
-  .third-wrap{max-width:260px;margin-top:18px}
-  .third-wrap .round-head{text-align:left;padding-bottom:8px}
-
   /* ---- Footer / sources ---- */
   .sources{margin-top:34px;padding-top:18px;border-top:1px solid var(--line);font-size:11.5px;color:var(--ink2);
     line-height:1.7;width:100%}
@@ -168,15 +187,72 @@
     pointer-events:none;transition:.25s;z-index:80}
   .toast.show{opacity:1;transform:translateX(-50%) translateY(0)}
 
+  /* win-% bar: a 50% tick + segment divider so the lean reads at a glance */
+  .advbar{position:relative}
+  .advbar::after{content:'';position:absolute;left:50%;top:-2px;bottom:-2px;width:1px;background:var(--ink3);opacity:.5}
+  .advbar>.a{border-right:1px solid rgba(255,255,255,.5)}
+  .advlab{display:inline-flex;align-items:center;gap:3px}
+  .advlab .fl{font-size:11px}
+
+  /* projected (not-yet-played) scores read quieter than real results */
+  .sc.proj{color:var(--ink2);font-weight:700}
+  .when .proj-tag{color:var(--ink3);font-weight:700}
+
+  /* keyboard focus — picks & controls operable without a mouse */
+  .row[tabindex]:focus-visible{outline:2px solid var(--sage);outline-offset:-2px;border-radius:7px}
+  .pill:focus-visible,.btn:focus-visible,.seg-btn:focus-visible,.minitab:focus-visible{outline:2px solid var(--sage);outline-offset:2px}
+
+  /* team-path highlight (desktop hover) */
+  .bracket.path-on .match{opacity:.38;transition:opacity .12s}
+  .bracket.path-on .match.on-path{opacity:1}
+  .match.on-path{border-color:var(--sage);box-shadow:0 0 0 1px var(--sage),var(--shadow)}
+  .match.on-path .row.path-team{background:rgba(79,122,63,.13)}
+
+  /* postponed / abnormal game tag */
+  .tag.warn{background:rgba(184,95,46,.13);color:var(--clay);border:1px solid rgba(184,95,46,.32)}
+
+  /* champion moment when a REAL final completes */
+  @keyframes trophyPop{0%{transform:scale(.5);opacity:0}55%{transform:scale(1.18)}100%{transform:scale(1)}}
+  @keyframes sheen{0%{background-position:180% 0}100%{background-position:-80% 0}}
+  .winner-banner.champion-final{border-color:#d7c474;box-shadow:0 0 0 1px #e6d68c,0 10px 28px rgba(120,98,28,.2)}
+  .winner-banner.champion-final .trophy{animation:trophyPop .7s ease-out both}
+  .winner-banner.champion-final .who{background:linear-gradient(100deg,var(--ink) 38%,#bd8f24 50%,var(--ink) 62%);
+    background-size:220% 100%;-webkit-background-clip:text;background-clip:text;-webkit-text-fill-color:transparent;animation:sheen 2.4s ease-in-out 1}
+
+  /* third-place: bronze-tinted & quieter so it can't be misread as a second final */
+  .bronze-box .match{border-color:#c2ad80;background:#dcd3bb;box-shadow:none}
+  .bronze-box .m-top{background:#cdbd95;color:#6a5c3c}
+  .bronze-box .final-x{display:none}
+
+  /* mobile round pager (built in render() under 760px) */
+  .round-tabs{display:none}
+
   @media(max-width:760px){
-    :root{--r32w:186px;--colgap:32px}
+    :root{--r32w:186px;--colgap:30px}
     .wrap{padding:0 12px 36px}
-    .scroll-hint{display:block}
     .brand h1{font-size:15px}
-    .row{padding:8px 9px;gap:7px}
-    .row .nm{font-size:12px}
+    .row{padding:9px;gap:7px;min-height:44px}
+    .row .nm{font-size:12.5px}
     .row .sc{font-size:14px}
+    .bracket-scroll{touch-action:pan-x}
+    /* single-column pager replaces the wide two-sided swipe */
+    .round-tabs{display:flex;gap:6px;overflow-x:auto;position:sticky;top:54px;z-index:30;
+      background:var(--bg);padding:9px 12px;margin:0 -12px 2px;border-bottom:1px solid var(--line);-webkit-overflow-scrolling:touch}
+    .minitab{flex:0 0 auto;border:1px solid var(--line2);background:transparent;color:var(--ink2);
+      border-radius:999px;padding:8px 13px;font:inherit;font-size:13px;font-weight:700;min-height:40px;cursor:pointer;white-space:nowrap}
+    .minitab.on{background:var(--ink);color:var(--bg);border-color:var(--ink)}
+    .bracket-scroll{overflow:visible;padding:10px 0}
+    .bracket.mobile{flex-direction:column;gap:11px;min-width:0}
+    .bracket.mobile .round{flex:0 0 auto;min-width:0;width:100%}
+    .bracket.mobile .round-head{display:none}
+    .bracket.mobile .cell{flex:0 0 auto;padding:0}
+    .bracket.mobile .cell::before,.bracket.mobile .cell::after,
+    .bracket.mobile .final-box::before,.bracket.mobile .final-box::after{display:none}
+    .bracket.mobile .center-col,.bracket.mobile .center-body{display:contents}
+    .bracket.mobile .winner-banner{margin-bottom:4px}
+    .scroll-hint{display:none}
   }
+  @media(prefers-reduced-motion:reduce){ *{animation:none!important;transition:none!important} }
 </style>
 </head>
 <body>
@@ -191,6 +267,7 @@
       <span class="pill acc-chip" id="accChip" style="display:none" title="How the frozen pre-tournament prediction is doing vs actual results"></span>
       <span class="pill" id="liveStatus"><span class="dot" id="liveDot"></span><span id="liveText">Connecting…</span></span>
       <button class="pill on" id="autoBtn" title="Toggle live auto-refresh">⟳ Auto <b id="autoState">ON</b></button>
+      <button class="btn" id="finalBtn" title="Jump to the final">Final ▸</button>
       <button class="btn" id="refreshBtn">Refresh</button>
       <button class="btn" id="resetBtn">Reset</button>
       <button class="btn primary" id="shareBtn">Share</button>
@@ -199,11 +276,12 @@
 </header>
 
 <div class="wrap">
-  <div class="scroll-hint">← swipe to see later rounds →</div>
+  <div id="srLive" class="sr-only" aria-live="polite" aria-atomic="true"></div>
+  <div class="round-tabs" id="roundTabs" role="tablist" aria-label="Bracket round"></div>
+  <div class="scroll-hint">The final sits in the centre — scroll each way to reach the earlier rounds.</div>
   <div class="bracket-scroll">
     <div class="bracket" id="bracket"></div>
   </div>
-  <div id="thirdHost"></div>
 
   <div class="sources">
     <div class="legend">
@@ -310,6 +388,14 @@ const ROUND_LABEL = {R32:["Round of 32","32 teams"],R16:["Round of 16","16 teams
 const ROUND_ORDER = ["R32","R16","QF","SF","F"];
 const NEXT_ROUND = {R32:"R16",R16:"QF",QF:"SF",SF:"F"};
 
+/* ---------- MODEL TUNABLES — every magic number in one auditable place ---------- */
+const MODEL = Object.freeze({
+  SCALE:1.48, WR:0.485, WA:0.273, WD:0.180,        // strength = WR·z(rank)+WA·z(attack)+WD·z(defence)
+  GP:3, SHRINK:2.6, REF:1.5, KBASE:1.40,           // form scoring: shrink group goals toward a rank prior
+  ROUND_W:{G:1, R32:4, R16:8, QF:14, SF:22, '3P':14, F:34},   // recency weight per round (live ratings)
+  RATING_SHRINK:1.6,                               // sample-size shrinkage for the live ratings
+});
+
 /* ---------- FIFA-rank scoring model ---------- */
 const clamp=(x,lo,hi)=>Math.max(lo,Math.min(hi,x));
 const rank = c => (TEAMS[c]?TEAMS[c].rank:50);
@@ -330,7 +416,7 @@ function hashFrac(a,b){
    2 GA, two 0-0s) is modelled as genuinely tough to break down, not a pushover.
    Expected goals for a pairing = one team's attack vs the other's defence.
    Every one of the 32x31 ordered (winner,loser) scorelines is pre-computed.   */
-const GP=3, SHRINK=2.6, REF=1.5, KBASE=1.40;
+const {GP,SHRINK,REF,KBASE}=MODEL;
 const priorAtt  = r => clamp(2.10 - (r-1)*0.018, 0.85, 2.10);  // goals/g prior by rank
 const priorConc = r => clamp(0.70 + (r-1)*0.014, 0.70, 1.80);  // conceded/g prior by rank
 const attRate   = t => ((FORM[t]?FORM[t].gf:TEAMS[t].gf) + SHRINK*priorAtt(TEAMS[t].rank))/(GP+SHRINK);
@@ -357,14 +443,16 @@ const FORM = {
    feeds the SCORES is reactive — not a snapshot. (The progression model keeps the
    static, market-validated form; this only drives the predicted scorelines.)      */
 let GAMES_GROUP=[], GAMES_KO=[], RAT=null;
-const ROUND_W={G:1, R32:4, R16:8, QF:14, SF:22, '3P':14, F:34};   // recency weight per round
+const ROUND_W=MODEL.ROUND_W;   // recency weight per round
 function fitRatings(){
   const games=[...GAMES_GROUP, ...GAMES_KO]; if(games.length<8) return null;
   const teams=new Set(); games.forEach(g=>{teams.add(g.a);teams.add(g.b);});
   const A={},D={},by={}; teams.forEach(t=>{A[t]=1;D[t]=1;by[t]=[];});
   let wg=0,wn=0;
-  games.forEach(g=>{ const w=ROUND_W[g.round]||1; wg+=w*(g.ga+g.gb); wn+=w*2;
-    by[g.a].push({o:g.b,f:g.ga,c:g.gb,w}); by[g.b].push({o:g.a,f:g.gb,c:g.ga,w}); });
+  games.forEach(g=>{ const w=ROUND_W[g.round]||1, sc=g.aet?0.75:1;   // scale 120' output to a 90' rate
+    const fa=g.ga*sc, fb=g.gb*sc;
+    wg+=w*(fa+fb); wn+=w*2;
+    by[g.a].push({o:g.b,f:fa,c:fb,w}); by[g.b].push({o:g.a,f:fb,c:fa,w}); });
   const MU=clamp(wn>0?wg/wn:1.3, 0.8, 2.2);
   for(let it=0;it<25;it++){
     for(const t of teams){ let nf=0,df=0,nc=0,dc=0;
@@ -376,7 +464,7 @@ function fitRatings(){
   }
   // shrink toward average by sample size — don't over-trust a sparse 3-game group read;
   // a heavily-weighted knockout result shrinks less, so recent form still comes through
-  const K=1.6; teams.forEach(t=>{ const w=by[t].reduce((s,g)=>s+g.w,0), sh=w/(w+K); A[t]=1+(A[t]-1)*sh; D[t]=1+(D[t]-1)*sh; });
+  const K=MODEL.RATING_SHRINK; teams.forEach(t=>{ const w=by[t].reduce((s,g)=>s+g.w,0), sh=w/(w+K); A[t]=1+(A[t]-1)*sh; D[t]=1+(D[t]-1)*sh; });
   return {A,D,MU};
 }
 const refreshRatings=()=>{ const r=fitRatings(); if(r) RAT=r; };
@@ -396,7 +484,7 @@ function matchupXG(a,b,pred){
    the market's outright title odds (log-correlation r≈0.975) — i.e. it matches how
    far the betting market expects each team to progress. It then re-fits each render
    to the live per-game lines, so the whole thing stays current with no feed or key. */
-const SCALE=1.48, WR=0.485, WA=0.273, WD=0.180;
+const {SCALE,WR,WA,WD}=MODEL;
 const BASE=(function(){
   const cs=Object.keys(TEAMS), rc={},at={},df={};
   cs.forEach(c=>{ rc[c]=-Math.log(TEAMS[c].rank); at[c]=(FORM[c]?FORM[c].gf:TEAMS[c].gf)/3; df[c]=-(FORM[c]?FORM[c].ga:TEAMS[c].ga)/3; });
@@ -434,9 +522,12 @@ function predAdv(a,b){ return 1/(1+Math.exp(-(base(a)-base(b))/SCALE)); }
 // even tie can be settled on penalties. pred=true uses the static (pre-tournament) form.
 function scoreFromWinProb(W,L,wp,pred){
   const {xa:xgW, xb:xgL}=matchupXG(W,L,pred);
+  // the margin scales with the odds: a heavy favourite is pushed toward a wider win,
+  // a coin-flip toward a tight one (footer promises this; previously wp only gated pens)
+  const edge=clamp((wp-0.5)*1.3, -0.5, 0.95);
   const n1=hashFrac(W,L)-0.5, n2=hashFrac(L,W)-0.5;
-  let gW=Math.max(0,Math.round(xgW + n1*0.8));
-  let gL=Math.max(0,Math.round(xgL + n2*0.8));
+  let gW=Math.max(0,Math.round(xgW + edge + n1*0.7));
+  let gL=Math.max(0,Math.round(xgL - edge*0.45 + n2*0.7));
   if(gW<gL){ const t=gW; gW=gL; gL=t; }                       // odds winner W shown ahead
   // a tight, evenly-matched tie can finish LEVEL and go to penalties (W wins the shootout):
   const even=Math.max(0,1-Math.abs(wp-0.5)*2);                // 1 = coin-flip, 0 = mismatch
@@ -478,8 +569,9 @@ function liveModel(a,b,gh,ga,minute){
 }
 
 /* ---------- State ---------- */
-let picks={}, live={}, autoOn=true, pollTimer=null, lastUpdate=null, feedOk=false;
+let picks={}, live={}, livePair={}, autoOn=true, pollTimer=null, lastUpdate=null, feedOk=false;
 let viewMode="live", PREDICTION=null;   // "live" bracket vs frozen "predicted" forecast
+let fetchSeq=0, failCount=0;            // in-flight guard + transient-failure counter
 
 /* ---------- Visual order (in-order leaves so feeders sit adjacent) ---------- */
 const VISUAL={};
@@ -495,11 +587,28 @@ function halfOrder(rootId,out){ (function po(id){ const m=BY_ID[id];
 halfOrder("SF-1",VISUAL_L); halfOrder("SF-2",VISUAL_R);
 
 /* ---------- Live helpers ---------- */
-const liveRec=m=>live[m.espnId];
+// Pair-keyed fallback: a finished / odds-bearing game still binds to the right node
+// even if its hardcoded espnId is wrong (ESPN's R16->QF numbering isn't confirmable yet),
+// by matching on the actual team pair. recWith() can use teams known mid-projection-build,
+// before PROJ[m] exists; liveRec() heals via the already-built PROJ for display.
+const pairKey=(x,y)=>(x&&y)?[x,y].sort().join('|'):null;
+// trust a hardcoded espnId only if its record's teams match the matchup we expect; if the id was
+// mis-attached to a different game, heal via the actual team pair (the whole point of the fallback)
+const recOK=(r,a,b)=> r && (!a||!b || (r.byTeam && r.byTeam[a]!=null && r.byTeam[b]!=null));
+function recWith(m,a,b){ const r=live[m.espnId];
+  if(recOK(r,a,b)) return r;
+  if(a&&b){ const q=livePair[pairKey(a,b)]; if(q) return q; }
+  return r||null;
+}
+function liveRec(m){ const p=PROJ[m.id], r=live[m.espnId];
+  if(recOK(r, p&&p.home, p&&p.away)) return r;
+  if(p&&p.home&&p.away){ const q=livePair[pairKey(p.home,p.away)]; if(q) return q; }
+  return r||undefined;
+}
 const isFinal=m=>{const r=liveRec(m);return r&&r.completed&&r.winner;};
-const finalWinner=m=>{const r=liveRec(m);return (r&&r.completed)?r.winner:null;};
+const finalWinner=(m,a,b)=>{const r=recWith(m,a,b)||liveRec(m);return (r&&r.completed)?r.winner:null;};
 // does this exact matchup have real ESPN/DraftKings odds for both shown teams?
-const hasOdds=(m,a,b)=>{const r=liveRec(m);return !!(r&&r.advByTeam&&a&&b&&r.advByTeam[a]!=null&&r.advByTeam[b]!=null);};
+const hasOdds=(m,a,b)=>{const r=recWith(m,a,b)||liveRec(m);return !!(r&&r.advByTeam&&a&&b&&r.advByTeam[a]!=null&&r.advByTeam[b]!=null);};
 
 /* ---------- Deterministic bracket projection ---------- */
 // P(team a advances over team b) for THIS match — single source of truth for the
@@ -508,9 +617,9 @@ const hasOdds=(m,a,b)=>{const r=liveRec(m);return !!(r&&r.advByTeam&&a&&b&&r.adv
 // pick or a final result overrides.
 function matchAdvProb(m,a,b){
   if(!a||!b) return 0.5;
-  const fw=finalWinner(m); if(fw) return fw===a?1:0;          // result locked
+  const fw=finalWinner(m,a,b); if(fw) return fw===a?1:0;      // result locked
   const pk=picks[m.id]; if(pk===a||pk===b) return pk===a?1:0; // your pick
-  const r=liveRec(m);
+  const r=recWith(m,a,b)||liveRec(m);
   if(r&&r.advByTeam&&r.advByTeam[a]!=null&&r.advByTeam[b]!=null){               // ESPN/DraftKings odds — auto-updating, pre & in-play (preferred: more accurate)
     const pa=r.advByTeam[a], pb=r.advByTeam[b], s=pa+pb; return s>0?pa/s:0.5;
   }
@@ -521,7 +630,7 @@ function matchAdvProb(m,a,b){
 // the single winner of a decided pairing: locked result > your pick > favourite
 function decideWinner(m,a,b){
   if(!a||!b) return a||b||null;
-  const fw=finalWinner(m); if(fw) return fw;
+  const fw=finalWinner(m,a,b); if(fw) return fw;
   const pk=picks[m.id]; if(pk===a||pk===b) return pk;
   return matchAdvProb(m,a,b)>=0.5?a:b;
 }
@@ -537,7 +646,7 @@ function buildProjection(invalid){
     const a = m.round==="R32" ? m.home.team : sideTeam(m.home);
     const b = m.round==="R32" ? m.away.team : sideTeam(m.away);
     if(invalid){ const pk=picks[m.id];     // a pick whose team can no longer reach this match
-      if(pk && a && b && pk!==a && pk!==b && !finalWinner(m)) invalid.push(m.id); }
+      if(pk && a && b && pk!==a && pk!==b && !finalWinner(m,a,b)) invalid.push(m.id); }
     const winner=decideWinner(m,a,b);
     PROJ[m.id]={home:a, away:b, winner, loser: winner?(winner===a?b:a):null};
   }
@@ -564,23 +673,31 @@ function fmtWhen(m){
   return d.toLocaleDateString(undefined,{weekday:"short",month:"short",day:"numeric"})+" · "+
          d.toLocaleTimeString(undefined,{hour:"numeric",minute:"2-digit"});
 }
-function teamRowHTML(m,side,team,score,role,mark){
-  // role: 'win' | 'lose' | 'pick' | '' ; tbd when no team. mark = extra badge (e.g. pens)
+function teamRowHTML(m,side,team,score,role,mark,proj){
+  // role: 'win' | 'lose' | 'pick' | '' ; tbd when no team. mark = extra badge (e.g. pens).
+  // proj=true marks a not-yet-played (projected) score so it reads quieter than a real result.
   if(!team){
-    return `<div class="row tbd"><div class="fl">—</div><div class="nm">${tbdLabel(m,side)}</div><div class="sc"></div></div>`;
+    return `<div class="row tbd"><div class="fl" aria-hidden="true">—</div><div class="nm">${tbdLabel(m,side)}</div><div class="sc"></div></div>`;
   }
   const T=TEAMS[team]||{};
   const cls=["row"]; if(role==="pick")cls.push("picked"); if(role==="win")cls.push("win"); if(role==="lose")cls.push("lose");
-  const badge = role==="pick"?'<span class="pick-badge">PICK</span>': (role==="win"&&isFinal(m))?'<span class="chk">✓</span>':'';
-  return `<div class="${cls.join(' ')}" data-node="${m.id}" data-team="${team}">
-    <div class="fl">${T.flag||"🏳️"}</div>
+  const badge = role==="pick"?'<span class="pick-badge">PICK</span>': (role==="win"&&isFinal(m))?'<span class="chk" aria-hidden="true">✓</span>':'';
+  const locked=isFinal(m);
+  const al = locked ? ((T.name||team)+(role==="win"?" won":role==="lose"?" out":"")) : ("Pick "+(T.name||team)+" to advance");
+  const sc = (score!==null&&score!==undefined)?score:"";
+  return `<div class="${cls.join(' ')}" data-node="${m.id}" data-team="${team}"${locked?'':' role="button" tabindex="0" aria-pressed="'+(role==="pick")+'"'} aria-label="${al}">
+    <div class="fl" aria-hidden="true">${T.flag||"🏳️"}</div>
     <div class="nm"><span class="tn">${T.name||team}</span><span class="seed">#${T.rank||"?"}</span>${badge}${mark||""}</div>
-    <div class="sc">${score!==null&&score!==undefined?score:""}</div>
+    <div class="sc${proj?" proj":""}">${sc}</div>
   </div>`;
 }
+// candidate teams for a not-yet-decided slot (flags), falling back to a round label
 function tbdLabel(m,side){ const s=m[side];
-  if(m.round==="R32") return s.team;
-  return (s.loser?"Loser ":"Winner ")+s.feed;
+  if(m.round==="R32") return TEAMS[s.team]?TEAMS[s.team].name:s.team;
+  const fm=BY_ID[s.feed];
+  if(fm){ const ha=fm.round==="R32"?fm.home.team:null, aa=fm.round==="R32"?fm.away.team:null;
+    if(ha&&aa) return `<span class="cand">${(TEAMS[ha]||{}).flag||""}/${(TEAMS[aa]||{}).flag||""}</span> ${s.loser?"loser":"winner"}`; }
+  return (s.loser?"Loser ":"Winner ")+(fm?ROUND_LABEL[fm.round][0]:s.feed);
 }
 
 function matchHTML(m){
@@ -588,21 +705,22 @@ function matchHTML(m){
   const a=P.home, b=P.away, winner=P.winner, loser=P.loser;
   const r=liveRec(m);
 
-  // scores per side
-  let scH=null, scA=null, pens=false;
-  if(r&&(r.state==="in"||r.completed)){
+  // scores per side. proj = a not-yet-played (predicted) score, shown quieter than a real result.
+  const livePlayed = r && (r.state==="in" || r.completed) && !r.abnormal;
+  let scH=null, scA=null, pens=false, proj=false;
+  if(livePlayed){
     if(r.byTeam){ if(a!=null) scH=r.byTeam[a]; if(b!=null) scA=r.byTeam[b]; }
-  } else if(a&&b&&winner&&m.round!=="3P"){
+  } else if(a&&b&&winner&&m.round!=="3P"){      // postponed games fall here too — show the projection, not a 0–0
     const s=scoreFor(m,winner,loser);
     scH = (a===winner)?s.win:s.lose;
     scA = (b===winner)?s.win:s.lose;
-    pens = !!s.pens;
+    pens = !!s.pens; proj = true;
   }
 
   // a manual pick settles the tie outright — the predicted score & how it was won
   // no longer matter, so drop them and just mark who was picked
-  const userPicked = !!picks[m.id] && !(r&&(r.state==="in"||r.completed));
-  if(userPicked){ scH=null; scA=null; pens=false; }
+  const userPicked = !!picks[m.id] && !livePlayed;
+  if(userPicked){ scH=null; scA=null; pens=false; proj=false; }
 
   // roles
   const finished=isFinal(m), picked=picks[m.id];
@@ -614,14 +732,16 @@ function matchHTML(m){
   const showOdds = hasOdds(m,a,b) && !picks[m.id] && !isFinal(m);
   const pa = showOdds ? matchAdvProb(m,a,b) : 0.5, pb = 1-pa;
   const src = (r&&r.oddsProvider) ? (r.oddsProvider+" via ESPN") : "ESPN";
-  const advbar = showOdds ? `<div class="adv" title="Live to-advance odds — ${src}">
-     <span class="advlab">${pct(pa)}</span>
-     <div class="advbar"><i class="a" style="width:${pa*100}%"></i><i class="b" style="width:${pb*100}%"></i></div>
-     <span class="advlab">${pct(pb)}</span></div>` : "";
+  const fa=(TEAMS[a]||{}), fb=(TEAMS[b]||{});
+  const advbar = showOdds ? `<div class="adv" title="Live win probability to advance — ${src}">
+     <span class="advlab"><span class="fl" aria-hidden="true">${fa.flag||""}</span>${pct(pa)}</span>
+     <div class="advbar" role="img" aria-label="${fa.name||a} ${pct(pa)} to advance, ${fb.name||b} ${pct(pb)}"><i class="a" style="width:${pa*100}%"></i><i class="b" style="width:${pb*100}%"></i></div>
+     <span class="advlab"><span class="fl" aria-hidden="true">${fb.flag||""}</span>${pct(pb)}</span></div>` : "";
 
   // top-right tag
   let tag="";
-  if(r&&r.state==="in") tag=`<span class="tag live">● LIVE</span>`;
+  if(r&&r.abnormal) tag=`<span class="tag warn" title="Postponed / not played">postp.</span>`;
+  else if(r&&r.state==="in") tag=`<span class="tag live">● LIVE</span>`;
   else if(r&&r.completed) tag=`<span class="tag final">FINAL${r.note?" "+r.note:""}</span>`;
 
   // foot
@@ -630,17 +750,17 @@ function matchHTML(m){
     if(r&&r.state==="in"){ const lm=liveModel(a,b,r.gh,r.ga,r.minute); foot=`<span>proj ${Math.round(lm.projA)}–${Math.round(lm.projB)} final</span>`; }
     else if(finished){ foot=`<span>${TEAMS[winner].name} advance</span>`; }
     else if(m.round!=="3P"){
-      // rows already show the predicted score, so only flag pens / an upset here
-      const up = !userPicked && winner && loser && tstr(winner) < tstr(loser);
+      // rows already show the predicted score, so only flag pens / a rank upset here
+      const up = !userPicked && winner && loser && rank(winner) > rank(loser)+8;
       foot = userPicked ? "" : (pens ? `<span>${TEAMS[winner].name} on pens</span>` : (up ? `<span class="up">upset</span>` : ""));
     } else foot="";
   } else foot="";
-  const clr = picked?`<span class="clr" data-clear="${m.id}">undo ✕</span>`:"";
+  const clr = picked?`<span class="clr" data-clear="${m.id}" role="button" tabindex="0" aria-label="Undo pick">undo ✕</span>`:"";
 
   return `<div class="match" data-mid="${m.id}">
-    <div class="m-top"><span class="when">${fmtWhen(m)}</span>${tag}</div>
-    ${teamRowHTML(m,"home",a,scH,roleHome, pens&&winner===a?'<span class="pens-badge">pens ✓</span>':'')}
-    ${teamRowHTML(m,"away",b,scA,roleAway, pens&&winner===b?'<span class="pens-badge">pens ✓</span>':'')}
+    <div class="m-top"><span class="when">${fmtWhen(m)}${proj?' <span class="proj-tag">· proj</span>':''}</span>${tag}</div>
+    ${teamRowHTML(m,"home",a,scH,roleHome, pens&&winner===a?'<span class="pens-badge">pens ✓</span>':'', proj)}
+    ${teamRowHTML(m,"away",b,scA,roleAway, pens&&winner===b?'<span class="pens-badge">pens ✓</span>':'', proj)}
     ${advbar}
     ${(foot||clr)?`<div class="m-foot">${foot}<span style="flex:1"></span>${clr}</div>`:""}
   </div>`;
@@ -685,19 +805,20 @@ function predRow(team,score,isWin){
 function matchCardPredicted(m){
   const P=pred()[m.id]; if(!P||!P.home||!P.away) return `<div class="match"><div class="m-foot"><span>—</span></div></div>`;
   const when=new Date(m.date).toLocaleDateString(undefined,{month:"short",day:"numeric"});
-  const r=liveRec(m); let badge, actual;
+  const r=liveRec(m); let badge, cmp;
+  const predCell = `<span class="pa"><span class="pa-lab">pred</span><b>${(TEAMS[P.winner]||{}).flag||''} ${P.pw}–${P.pl}</b>${P.pens?' <span class="pa-pk">pens</span>':''}</span>`;
   if(r&&r.completed&&r.winner){
     const ks=Object.keys(r.byTeam), lt=ks.find(t=>t!==r.winner);
     const awG=r.byTeam[r.winner], alG=lt!=null?r.byTeam[lt]:awG;
     const winOK=r.winner===P.winner, exact=winOK&&awG===P.pw&&alG===P.pl;
     badge = exact?'<span class="acc ok">✓ exact</span>': winOK?'<span class="acc part">✓ winner</span>':'<span class="acc no">✗ missed</span>';
-    actual = `<span class="actual">actual ${(TEAMS[r.winner]||{}).flag||''} <b>${awG}–${alG}</b> ${(TEAMS[lt]||{}).flag||''}${r.note?' '+r.note:''}</span>`;
-  } else { badge='<span class="acc pend">forecast</span>'; actual='<span class="actual" style="color:var(--ink3)">awaiting result</span>'; }
+    cmp = predCell + `<span class="pa act ${exact?'ok':winOK?'part':'no'}"><span class="pa-lab">actual</span><b>${(TEAMS[r.winner]||{}).flag||''} ${awG}–${alG}</b>${r.note?' '+r.note.replace(/[()]/g,''):''}</span>`;
+  } else { badge='<span class="acc pend">forecast</span>'; cmp = predCell + '<span class="pa await"><span class="pa-lab">actual</span>—</span>'; }
   return `<div class="match">
     <div class="m-top"><span class="when">${when}</span>${badge}</div>
     ${predRow(P.home,P.sH,P.home===P.winner)}
     ${predRow(P.away,P.sA,P.away===P.winner)}
-    <div class="m-foot pred-foot">${P.pens?`<span>${TEAMS[P.winner].name} on pens</span>`:''}${actual}</div>
+    <div class="m-foot pred-foot">${cmp}</div>
   </div>`;
 }
 function setAccChip(){
@@ -709,51 +830,83 @@ function setAccChip(){
     chip.title=`vs ${a.done} completed game${a.done>1?'s':''}: correct winner in ${a.win}/${a.done} (${a.exact} exact scores). Score % grades how close each predicted scoreline was — each goal off ≈ −20%.`; }
 }
 
+const MQ = window.matchMedia("(max-width:760px)");
+let mobileRound="R32";
 function render(){
   const PRED = viewMode==="predicted";
-  if(!PRED){ refreshStrength(); refreshProjection(); }
+  if(!PRED){ refreshProjection(); }   // strength is re-fit in fetchLive (only when odds change)
   const cardFn = PRED ? matchCardPredicted : matchHTML;
-  const col=(lbl,matches,cls)=>`<div class="round ${cls}">
-      <div class="round-head">${lbl[0]}<small>${lbl[1]}</small></div>
+  // QF-and-later matchups ride on the bracket wiring, which isn't confirmable until R16 is played
+  const wires = BRACKET.some(x=>x.round==="R16"&&isFinal(x)) ? ""
+    : '<span class="hedge" title="Quarterfinal-and-later matchups are projected from the bracket wiring — they lock in as the Round of 16 is played">*</span>';
+  const out = MQ.matches ? renderMobile(PRED,cardFn,wires) : renderDesktop(PRED,cardFn,wires);
+  const b=$("#bracket"); b.className="bracket"+(MQ.matches?" mobile":""); b.innerHTML=out.bracket;
+  $("#roundTabs").innerHTML=out.tabs||"";
+  document.querySelectorAll("#roundTabs .minitab").forEach(t=>t.onclick=()=>{ mobileRound=t.dataset.round; render(); });
+  setAccChip(); announce();
+  if(!PRED) attachHandlers();
+}
+function renderDesktop(PRED,cardFn,wires){
+  const col=(lbl,matches,cls,note)=>`<div class="round ${cls}">
+      <div class="round-head">${lbl[0]}${note||''}<small>${lbl[1]}</small></div>
       <div class="col-body">${matches.map(m=>`<div class="cell">${cardFn(m)}</div>`).join("")}</div></div>`;
   const L=ROUND_LABEL;
   let html="";
-  // LEFT half — flows left→right toward the centre
-  html+=col(L.R32, VISUAL_L.R32, "out-r");
+  html+=col(L.R32, VISUAL_L.R32, "out-r");                 // LEFT half flows L→R toward the centre
   html+=col(L.R16, VISUAL_L.R16, "in-l out-r");
-  html+=col(L.QF,  VISUAL_L.QF,  "in-l out-r");
-  html+=col(L.SF,  VISUAL_L.SF,  "in-l");
-  // CENTRE — final, champion, third place
-  html+=centerCol(PRED);
-  // RIGHT half — mirrored, flows right→left toward the centre
-  html+=col(L.SF,  VISUAL_R.SF,  "mirror in-r");
-  html+=col(L.QF,  VISUAL_R.QF,  "mirror in-r out-l");
+  html+=col(L.QF,  VISUAL_L.QF,  "in-l out-r", wires);
+  html+=col(L.SF,  VISUAL_L.SF,  "in-l", wires);
+  html+=centerCol(PRED, wires);                            // CENTRE — final, champion, third place
+  html+=col(L.SF,  VISUAL_R.SF,  "mirror in-r", wires);    // RIGHT half mirrored, flows R→L
+  html+=col(L.QF,  VISUAL_R.QF,  "mirror in-r out-l", wires);
   html+=col(L.R16, VISUAL_R.R16, "mirror in-r out-l");
   html+=col(L.R32, VISUAL_R.R32, "mirror out-l");
-
-  $("#bracket").innerHTML=html;
-  $("#thirdHost").innerHTML="";
-  setAccChip();
-  if(!PRED) attachHandlers();
+  return {bracket:html, tabs:""};
+}
+function renderMobile(PRED,cardFn,wires){
+  const defs=[["R32","R32"],["R16","R16"],["QF","QF"],["SF","SF"],["F","Final"]];
+  if(!defs.some(d=>d[0]===mobileRound)) mobileRound="R32";
+  const tabs=defs.map(([k,lbl])=>`<button class="minitab${k===mobileRound?' on':''}" data-round="${k}" role="tab" aria-selected="${k===mobileRound}">${lbl}${(k==="QF"||k==="SF"||k==="F")?wires:""}</button>`).join("");
+  let body;
+  if(mobileRound==="F"){ body=centerCol(PRED, wires); }
+  else { const ms=VISUAL[mobileRound]||[];
+    body=`<div class="round"><div class="round-head">${ROUND_LABEL[mobileRound][0]}<small>${ROUND_LABEL[mobileRound][1]}</small></div><div class="col-body">${ms.map(m=>`<div class="cell">${cardFn(m)}</div>`).join("")}</div></div>`; }
+  return {bracket:body, tabs};
+}
+// announce live transitions to screen readers (seed silently on first load)
+let announcedState={}, announceSeeded=false;
+function announce(){
+  const region=$("#srLive"); if(!region) return;
+  if(!announceSeeded){ for(const id in live) announcedState[id]=live[id].state; if(Object.keys(live).length) announceSeeded=true; return; }
+  const msgs=[];
+  for(const id in live){ const r=live[id];
+    if(r.state!==announcedState[id]){
+      const lt=Object.keys(r.byTeam||{}).find(t=>t!==r.winner);
+      if(r.completed&&r.winner) msgs.push(`${(TEAMS[r.winner]||{}).name||r.winner} beat ${(TEAMS[lt]||{}).name||lt} ${r.byTeam[r.winner]}–${lt!=null?r.byTeam[lt]:''}${r.note?' '+r.note:''}, full time`);
+      else if(r.state==="in") msgs.push(`Now live: ${Object.keys(r.byTeam||{}).map(t=>(TEAMS[t]||{}).name||t).join(' versus ')}`);
+    }
+    announcedState[id]=r.state;
+  }
+  if(msgs.length) region.textContent=msgs.slice(-3).join(". ");
 }
 
-function centerCol(PRED){
+function centerCol(PRED, wires){
   const fm=BY_ID["F-1"];
   const champ=PRED?(pred()["F-1"]&&pred()["F-1"].winner):(PROJ["F-1"]&&PROJ["F-1"].winner), fdone=!PRED&&isFinal(fm);
   let champBox;
   if(champ){ const T=TEAMS[champ];
-    champBox=`<div class="winner-banner"><div class="trophy${fdone?'':' dim'}">🏆</div><div class="lbl">${fdone?"World Champions":(PRED?"Predicted Winner":"Projected Winner")}</div>
+    champBox=`<div class="winner-banner${fdone?' champion-final':''}"><div class="trophy${fdone?'':' dim'}">🏆</div><div class="lbl">${fdone?"World Champions":(PRED?"Predicted Winner":"Projected Winner")}</div>
        <div class="who">${T.flag} ${T.name}</div></div>`;
   } else {
     champBox=`<div class="winner-banner"><div class="trophy dim">🏆</div><div class="lbl">Champion</div><div class="who" style="color:var(--ink3)">—</div></div>`;
   }
   const finalCard = PRED?matchCardPredicted(fm):matchHTML(fm);
   return `<div class="round center-col">
-    <div class="round-head">${ROUND_LABEL.F[0]}<small>${ROUND_LABEL.F[1]}</small></div>
+    <div class="round-head">${ROUND_LABEL.F[0]}${wires||''}<small>${ROUND_LABEL.F[1]}</small></div>
     <div class="col-body center-body">
       ${champBox}
       <div class="final-box">${finalCard}</div>
-      <div class="bronze-box"><div class="mini-label">Third place</div>${thirdCard(PRED)}</div>
+      <div class="bronze-box"><div class="mini-label">🥉 Third place</div>${thirdCard(PRED)}</div>
     </div></div>`;
 }
 
@@ -776,20 +929,29 @@ function thirdCard(PRED){
 
 /* ---------- Interaction ---------- */
 function attachHandlers(){
+  const doPick=(node,team)=>{ const m=BY_ID[node]; if(!team) return;
+    if(isFinal(m)){ toast("This match is final — result is locked."); return; }
+    if(picks[node]===team) delete picks[node]; else picks[node]=team;
+    refreshProjection(); persist(); render(); };
   document.querySelectorAll(".match .row").forEach(row=>{
     if(row.classList.contains("tbd")) return;
-    row.onclick=()=>{
-      const node=row.dataset.node, team=row.dataset.team; if(!team) return;
-      const m=BY_ID[node];
-      if(isFinal(m)){ toast("This match is final — result is locked."); return; }
-      if(picks[node]===team) delete picks[node]; else picks[node]=team;
-      refreshProjection(); persist(); render();
-    };
+    const node=row.dataset.node, team=row.dataset.team;
+    row.onclick=()=>doPick(node,team);
+    row.onkeydown=e=>{ if(e.key==="Enter"||e.key===" "){ e.preventDefault(); doPick(node,team); } };
+    if(!MQ.matches){ row.onmouseenter=()=>highlightPath(team); row.onmouseleave=clearPath; }  // hover = trace path
   });
   document.querySelectorAll("[data-clear]").forEach(el=>{
-    el.onclick=e=>{ e.stopPropagation(); delete picks[el.dataset.clear]; refreshProjection(); persist(); render(); };
+    const clear=e=>{ e.stopPropagation(); delete picks[el.dataset.clear]; refreshProjection(); persist(); render(); };
+    el.onclick=clear;
+    el.onkeydown=e=>{ if(e.key==="Enter"||e.key===" "){ e.preventDefault(); clear(e); } };
   });
 }
+// highlight one team's whole route through the bracket (desktop hover)
+function highlightPath(team){ if(!team) return; const b=$("#bracket"); b.classList.add("path-on");
+  b.querySelectorAll('.row[data-team="'+team+'"]').forEach(r=>{ r.classList.add("path-team"); const c=r.closest(".match"); if(c) c.classList.add("on-path"); }); }
+function clearPath(){ const b=$("#bracket"); if(!b) return; b.classList.remove("path-on");
+  b.querySelectorAll(".on-path").forEach(c=>c.classList.remove("on-path"));
+  b.querySelectorAll(".path-team").forEach(r=>r.classList.remove("path-team")); }
 
 /* ---------- Persistence + share ---------- */
 function persist(){
@@ -827,50 +989,82 @@ function marketAdvByTeam(comp,homeAbbr,awayAbbr){
   const out={}; out[homeAbbr]=advH; out[awayAbbr]=1-advH; return out;
 }
 async function fetchLive(manual){
+  const myseq=++fetchSeq;                                     // newest in-flight fetch wins
+  const ctrl=new AbortController(), timer=setTimeout(()=>ctrl.abort(),8000);
   try{
-    const res=await fetch(ESPN_URL,{cache:"no-store"}); if(!res.ok) throw new Error("HTTP "+res.status);
-    const data=await res.json(); const next={}, ko=[];
+    const res=await fetch(ESPN_URL,{cache:"no-store",signal:ctrl.signal});
+    if(!res.ok) throw new Error("HTTP "+res.status);
+    const data=await res.json();
+    if(myseq!==fetchSeq) return;                             // a newer fetch superseded this one
+    const next={}, pair={}, ko=[]; let parsed=0;
     for(const ev of (data.events||[])){
-      const comp=ev.competitions&&ev.competitions[0]; if(!comp) continue;
-      const st=(ev.status&&ev.status.type)||{};
-      const hs=comp.competitors.find(c=>c.homeAway==="home"), as=comp.competitors.find(c=>c.homeAway==="away");
-      if(!hs||!as) continue;
-      const gh=parseInt(hs.score)||0, ga=parseInt(as.score)||0;
-      let winner=null;
-      if(st.state==="post"){ const w=comp.competitors.find(c=>c.winner===true);
-        winner=w?w.team.abbreviation:(gh>ga?hs.team.abbreviation:ga>gh?as.team.abbreviation:null); }
-      const byTeam={}; byTeam[hs.team.abbreviation]=gh; byTeam[as.team.abbreviation]=ga;
-      const o0=comp.odds&&comp.odds[0];
-      const advByTeam=marketAdvByTeam(comp, hs.team.abbreviation, as.team.abbreviation);
-      const oddsProvider=(advByTeam&&o0&&o0.provider&&o0.provider.name)?o0.provider.name:null;
-      next[String(ev.id)]={ state:st.state, completed:!!st.completed, winner,
-        note: st.state==="post"&&/pen|shootout/i.test(st.detail||"")?"(pens)":"",
-        gh,ga,byTeam,advByTeam,oddsProvider,
-        clock: st.state==="in"?(ev.status.displayClock||"LIVE"):"",
-        minute: parseMinute(ev.status&&ev.status.displayClock, st.detail) };
-      if(st.state==="post" && BRKROUND[String(ev.id)])
-        ko.push({a:hs.team.abbreviation, b:as.team.abbreviation, ga:gh, gb:ga, round:BRKROUND[String(ev.id)]});
+      try{                                                   // one malformed game can't blank the feed
+        const comp=ev.competitions&&ev.competitions[0];
+        if(!comp||!Array.isArray(comp.competitors)) continue;
+        const st=(ev.status&&ev.status.type)||{};
+        const hs=comp.competitors.find(c=>c.homeAway==="home"), as=comp.competitors.find(c=>c.homeAway==="away");
+        if(!hs||!as||!hs.team||!as.team) continue;
+        const ha=hs.team.abbreviation, aa=as.team.abbreviation;
+        const gh=parseInt(hs.score)||0, ga=parseInt(as.score)||0;
+        const detail=String(st.detail||st.description||st.name||"");
+        const abnormal=/postpon|suspend|abandon|cancel|delay/i.test(detail);   // not a real final
+        const aet=/extra.?time|a\.?e\.?t|120'|105'/i.test(detail);
+        let winner=null;
+        if(st.state==="post"&&!abnormal){ const w=comp.competitors.find(c=>c.winner===true);
+          winner=w?w.team.abbreviation:(gh>ga?ha:ga>gh?aa:null); }
+        const byTeam={}; byTeam[ha]=gh; byTeam[aa]=ga;
+        const o0=comp.odds&&comp.odds[0];
+        const advByTeam=marketAdvByTeam(comp, ha, aa);
+        const oddsProvider=(advByTeam&&o0&&o0.provider&&o0.provider.name)?o0.provider.name:null;
+        const rec={ state:st.state, completed:!!st.completed&&!abnormal, winner, abnormal, aet,
+          note: st.state==="post"&&/pen|shootout/i.test(detail)?"(pens)":(abnormal?"(postponed)":""),
+          gh,ga,byTeam,advByTeam,oddsProvider,
+          clock: st.state==="in"?(ev.status.displayClock||"LIVE"):"",
+          minute: parseMinute(ev.status&&ev.status.displayClock, detail) };
+        const id=String(ev.id); next[id]=rec; const pk=pairKey(ha,aa); if(pk) pair[pk]=rec; parsed++;
+        if(st.state==="post"&&!abnormal&&BRKROUND[id])
+          ko.push({a:ha, b:aa, ga:gh, gb:ga, round:BRKROUND[id], aet});
+      }catch(e){ if(window.console&&console.warn) console.warn("WC: skipped malformed event", ev&&ev.id, e); }
     }
-    live=next; GAMES_KO=ko; refreshRatings(); feedOk=true; lastUpdate=new Date(); setLiveStatus(); render();
-  }catch(err){ feedOk=false; setLiveStatus(); if(manual) toast("Couldn't reach live feed — showing predictions."); }
+    if(parsed===0) throw new Error("no events parsed");
+    live=next; livePair=pair; GAMES_KO=ko;
+    refreshRatings(); refreshProjection(); refreshStrength();  // proj first so the strength fit sees current teams
+    feedOk=true; failCount=0; lastUpdate=new Date(); setLiveStatus(); render();
+  }catch(err){
+    if(myseq!==fetchSeq) return;                             // superseded — ignore its failure
+    failCount++;                                             // keep showing last-good data on a single blip
+    if(failCount>=2){ feedOk=false; setLiveStatus(); }
+    if(manual) toast(err&&err.name==="AbortError"?"Live feed timed out — showing the projection.":"Couldn't reach the live feed — showing the projection.");
+  }finally{ clearTimeout(timer); }
 }
 const anyLive=()=>Object.values(live).some(r=>r.state==="in");
 const countFinal=()=>Object.values(live).filter(r=>r.completed).length;
+function relTime(d){ if(!d) return ""; const s=Math.round((Date.now()-d.getTime())/1000);
+  if(s<10)return"just now"; if(s<60)return s+"s ago"; const m=Math.round(s/60); if(m<60)return m+"m ago"; return Math.round(m/60)+"h ago"; }
 function setLiveStatus(){
   const dot=$("#liveDot"), txt=$("#liveText");
+  const stale = !!lastUpdate && (Date.now()-lastUpdate.getTime() > 3*(anyLive()?20000:60000));
   if(!feedOk){ dot.className="dot"; txt.textContent="Predictions (offline)"; }
-  else if(anyLive()){ dot.className="dot red"; txt.textContent="Live now"; }
-  else { dot.className="dot green"; const n=countFinal(); txt.textContent=n?(n+" finished"):"Live feed on"; }
-  $("#updatedAt").textContent = lastUpdate?("Live scores last updated "+lastUpdate.toLocaleTimeString()):"";
+  else if(anyLive()){ dot.className=stale?"dot":"dot red"; txt.textContent="Live now"; }
+  else { dot.className=stale?"dot":"dot green"; const n=countFinal(); txt.textContent=n?(n+" finished"):"Live feed on"; }
+  const u=$("#updatedAt");
+  if(u) u.textContent = lastUpdate?("Live scores updated "+relTime(lastUpdate)+(feedOk?"":" · reconnecting…")):"";
 }
-function startPolling(){ stopPolling(); if(autoOn) pollTimer=setInterval(()=>fetchLive(false), anyLive()?20000:60000); }
-function stopPolling(){ if(pollTimer){ clearInterval(pollTimer); pollTimer=null; } }
+// self-rescheduling poll: re-reads anyLive() each cycle, so it speeds to 20s the moment a
+// game goes live and eases to 60s when none are — the old setInterval locked its rate at boot
+function startPolling(){ tick(); }
+function tick(){ stopPolling(); if(autoOn) pollTimer=setTimeout(()=>fetchLive(false).finally(tick), anyLive()?20000:60000); }
+function stopPolling(){ if(pollTimer){ clearTimeout(pollTimer); pollTimer=null; } }
+setInterval(()=>{ if(feedOk&&lastUpdate) setLiveStatus(); }, 5000);   // keep "updated Xs ago" honest
 
 /* ---------- Controls ---------- */
 $("#autoBtn").onclick=()=>{ autoOn=!autoOn; $("#autoBtn").classList.toggle("on",autoOn);
   $("#autoState").textContent=autoOn?"ON":"OFF"; if(autoOn){ fetchLive(true); startPolling(); } else stopPolling(); };
 $("#refreshBtn").onclick=()=>fetchLive(true);
-$("#resetBtn").onclick=()=>{ picks={}; persist(); render(); toast("Picks reset to the FIFA-ranking projection."); };
+$("#finalBtn").onclick=()=>{ if(MQ.matches){ mobileRound="F"; render(); window.scrollTo({top:0,behavior:"smooth"}); }
+  else { const c=document.querySelector(".center-col"); if(c) c.scrollIntoView({inline:"center",block:"nearest",behavior:"smooth"}); } };
+(MQ.addEventListener?MQ.addEventListener("change",()=>render()):MQ.addListener(()=>render()));   // re-render when crossing the mobile breakpoint
+$("#resetBtn").onclick=()=>{ picks={}; persist(); render(); toast("Picks reset to the projection."); };
 $("#shareBtn").onclick=async()=>{ persist();
   try{ await navigator.clipboard.writeText(location.href); toast("Share link copied!"); }
   catch(e){ prompt("Copy your bracket link:",location.href); } };
