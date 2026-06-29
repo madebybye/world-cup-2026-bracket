@@ -396,8 +396,8 @@ const BRKROUND = {}; BRACKET.forEach(m=>BRKROUND[m.espnId]=m.round);   // espnId
 const ROUND_LABEL = {R32:["Round of 32","32 teams"],R16:["Round of 16","16 teams"],QF:["Quarterfinals","8 teams"],SF:["Semifinals","4 teams"],F:["Final","🏆"]};
 const ROUND_ORDER = ["R32","R16","QF","SF","F"];
 const NEXT_ROUND = {R32:"R16",R16:"QF",QF:"SF",SF:"F"};
-// what WINNING each round earns — used to label a pick's cumulative reach-&-win probability
-const NEXT_LABEL = {R32:"to reach the round of 16", R16:"to reach the quarter-finals", QF:"to reach the semi-finals", SF:"to reach the final", F:"to win the World Cup"};
+// stage names — labels the probability of an exact projected matchup actually happening
+const STAGE_LABEL = {R16:"last-16 match", QF:"quarter-final", SF:"semi-final", F:"final"};
 
 /* ---------- MODEL TUNABLES — every magic number in one auditable place ---------- */
 const MODEL = Object.freeze({
@@ -801,15 +801,14 @@ function matchHTML(m){
       foot = userPicked ? "" : (pens ? `<span>${TEAMS[winner].name} on pens</span>` : (up ? `<span class="up">upset</span>` : ""));
     } else foot="";
   } else foot="";
-  const clr = picked?`<span class="clr" data-clear="${m.id}" role="button" tabindex="0" aria-label="Undo pick">undo ✕</span>`:"";
-
-  // once you pick a team, show the model's real chance of THAT team all the way along its
-  // projected path — how likely they actually are to get this far & win (ignores the pick,
-  // so it's the honest number). Appears on every future game your picked team is winning.
+  // once you pick teams, show the model's chance of THIS EXACT matchup happening at this
+  // stage — P(home gets here) × P(away gets here) — on the picked games and the ones that
+  // follow. So picking USA & England through reveals the odds of that exact final. The
+  // numbers ignore your picks, so they're the honest chance of the matchup occurring.
   let pickOdds="";
-  if(winner && !livePlayed && NEXT_LABEL[m.round] && Object.values(picks).indexOf(winner)>=0){
-    const R=reach(), p=(R[m.id]&&R[m.id][winner]!=null)?R[m.id][winner]:null;
-    if(p!=null) pickOdds=`<div class="pick-odds" title="The model's honest probability of your team reaching here and winning — your pick overrides the bracket, this is its real chance"><span class="fl" aria-hidden="true">${(TEAMS[winner]||{}).flag||""}</span><b>${pctP(p)}</b><span class="lbl">${NEXT_LABEL[m.round]}</span></div>`;
+  if(a && b && !livePlayed && STAGE_LABEL[m.round] && (Object.values(picks).indexOf(a)>=0 || Object.values(picks).indexOf(b)>=0)){
+    const R=reach(), pa=R[m.home.feed]&&R[m.home.feed][a], pb=R[m.away.feed]&&R[m.away.feed][b];
+    if(pa!=null && pb!=null) pickOdds=`<div class="pick-odds" title="The model's chance of this exact matchup actually happening — P(both teams get here)"><span class="fl" aria-hidden="true">${(TEAMS[a]||{}).flag||""}${(TEAMS[b]||{}).flag||""}</span><b>${pctP(pa*pb)}</b><span class="lbl">chance of this ${STAGE_LABEL[m.round]}</span></div>`;
   }
 
   return `<div class="match" data-mid="${m.id}">
@@ -817,7 +816,7 @@ function matchHTML(m){
     ${teamRowHTML(m,"home",a,scH,roleHome, pens&&winner===a?'<span class="pens-badge">pens ✓</span>':'', proj)}
     ${teamRowHTML(m,"away",b,scA,roleAway, pens&&winner===b?'<span class="pens-badge">pens ✓</span>':'', proj)}
     ${advbar}${pickOdds}
-    ${(foot||clr)?`<div class="m-foot">${foot}<span style="flex:1"></span>${clr}</div>`:""}
+    ${foot?`<div class="m-foot">${foot}</div>`:""}
   </div>`;
 }
 
@@ -1001,11 +1000,6 @@ function attachHandlers(){
     row.onclick=()=>doPick(node,team);
     row.onkeydown=e=>{ if(e.key==="Enter"||e.key===" "){ e.preventDefault(); doPick(node,team); } };
     if(!MQ.matches){ row.onmouseenter=()=>highlightPath(team); row.onmouseleave=clearPath; }  // hover = trace path
-  });
-  document.querySelectorAll("[data-clear]").forEach(el=>{
-    const clear=e=>{ e.stopPropagation(); delete picks[el.dataset.clear]; refreshProjection(); persist(); render(); };
-    el.onclick=clear;
-    el.onkeydown=e=>{ if(e.key==="Enter"||e.key===" "){ e.preventDefault(); clear(e); } };
   });
 }
 // highlight one team's whole route through the bracket (desktop hover)
