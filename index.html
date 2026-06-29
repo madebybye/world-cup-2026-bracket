@@ -808,7 +808,7 @@ function matchHTML(m){
   let pickOdds="";
   if(a && b && !livePlayed && STAGE_LABEL[m.round] && (Object.values(picks).indexOf(a)>=0 || Object.values(picks).indexOf(b)>=0)){
     const R=reach(), pa=R[m.home.feed]&&R[m.home.feed][a], pb=R[m.away.feed]&&R[m.away.feed][b];
-    if(pa!=null && pb!=null) pickOdds=`<div class="pick-odds" title="The model's chance of this exact matchup actually happening — P(both teams get here)"><span class="fl" aria-hidden="true">${(TEAMS[a]||{}).flag||""}${(TEAMS[b]||{}).flag||""}</span><b>${pctP(pa*pb)}</b><span class="lbl">chance of this ${STAGE_LABEL[m.round]}</span></div>`;
+    if(pa!=null && pb!=null) pickOdds=`<div class="pick-odds" title="The model's chance of this exact matchup actually happening — P(both teams get here)"><b>${pctP(pa*pb)}</b><span class="lbl">chance of this ${STAGE_LABEL[m.round]}</span></div>`;
   }
 
   return `<div class="match" data-mid="${m.id}">
