@@ -275,9 +275,6 @@
       <div class="seg" id="viewToggle"><button class="seg-btn on" data-view="live">Live</button><button class="seg-btn" data-view="predicted">Predicted</button></div>
       <span class="pill acc-chip" id="accChip" style="display:none" title="How the frozen pre-tournament prediction is doing vs actual results"></span>
       <span class="pill" id="liveStatus"><span class="dot" id="liveDot"></span><span id="liveText">Connecting…</span></span>
-      <button class="pill on" id="autoBtn" title="Toggle live auto-refresh">⟳ Auto <b id="autoState">ON</b></button>
-      <button class="btn" id="finalBtn" title="Jump to the final">Final ▸</button>
-      <button class="btn" id="refreshBtn">Refresh</button>
       <button class="btn" id="resetBtn">Reset</button>
       <button class="btn primary" id="shareBtn">Share</button>
     </div>
@@ -1114,11 +1111,6 @@ function stopPolling(){ if(pollTimer){ clearTimeout(pollTimer); pollTimer=null; 
 setInterval(()=>{ if(feedOk&&lastUpdate) setLiveStatus(); }, 5000);   // keep "updated Xs ago" honest
 
 /* ---------- Controls ---------- */
-$("#autoBtn").onclick=()=>{ autoOn=!autoOn; $("#autoBtn").classList.toggle("on",autoOn);
-  $("#autoState").textContent=autoOn?"ON":"OFF"; if(autoOn){ fetchLive(true); startPolling(); } else stopPolling(); };
-$("#refreshBtn").onclick=()=>fetchLive(true);
-$("#finalBtn").onclick=()=>{ if(MQ.matches){ mobileRound="F"; render(); window.scrollTo({top:0,behavior:"smooth"}); }
-  else { const c=document.querySelector(".center-col"); if(c) c.scrollIntoView({inline:"center",block:"nearest",behavior:"smooth"}); } };
 (MQ.addEventListener?MQ.addEventListener("change",()=>render()):MQ.addListener(()=>render()));   // re-render when crossing the mobile breakpoint
 $(".bracket-scroll").addEventListener("scroll",updateFades,{passive:true});
 window.addEventListener("resize",updateFades);
