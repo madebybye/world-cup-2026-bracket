@@ -153,6 +153,10 @@
   .advbar>.a{background:var(--barA)}
   .advbar>.b{background:var(--barB)}
   .advlab{font-size:10px;color:var(--ink3);font-variant-numeric:tabular-nums;white-space:nowrap}
+  .pick-odds{display:flex;align-items:center;gap:6px;padding:1px 10px 8px;font-size:11.5px;color:var(--ink2)}
+  .pick-odds .fl{font-size:13px}
+  .pick-odds b{color:var(--clay);font-weight:800;font-variant-numeric:tabular-nums}
+  .pick-odds .lbl{color:var(--ink3)}
   .m-foot{display:flex;justify-content:space-between;align-items:center;gap:6px;padding:0 10px 8px;font-size:10.5px;color:var(--ink2)}
   .m-foot .up{color:var(--clay);font-weight:700}
   .m-foot .clr{cursor:pointer;color:var(--clay);font-weight:700;transition:.12s;white-space:nowrap}
@@ -178,9 +182,8 @@
   .winner-banner .who{font-size:18px;font-weight:800;margin-top:5px;display:flex;align-items:center;justify-content:center;gap:9px;flex-wrap:wrap}
 
   /* ---- Footer / sources ---- */
-  .sources{margin-top:34px;padding-top:18px;border-top:1px solid var(--line);font-size:11.5px;color:var(--ink2);
-    line-height:1.7;width:100%}
-  .sources p{max-width:1040px}
+  .sources{max-width:800px;margin:36px auto 0;padding-top:18px;border-top:1px solid var(--line);font-size:12px;color:var(--ink2);line-height:1.6;text-align:left}
+  .sources p{margin:9px 0}
   .sources b{color:var(--ink)}
   .sources .updated{color:var(--ink3)}
   .legend{margin:6px 0 2px;color:var(--ink2)}
@@ -296,8 +299,8 @@
       <span class="k"><span class="tag live">LIVE</span></span>
       <span class="k"><span class="tag final">FINAL</span></span>
     </div>
-    <p><b>Tap any team</b> to send them through — matchups and scores update down the bracket; tap again to undo, or <b>Reset</b>. <b>Who advances is decided by the market:</b> the live per-game ESPN/DraftKings line for games that have one (that’s the win-% bar — hover for the source; auto-updates, including in-play), and a <b>strength equation</b> (FIFA rank + offensive/defensive form, tuned to the market) for future rounds that aren’t set yet. Your picks override any game; real <b>final results lock in</b>. The <b>predicted scoreline always matches that winner</b> — the margin scales with the odds, the goals come from each team’s form (opponent-adjusted); a close, even tie may go to <b>penalties</b> (the favourite wins the shootout). Future rounds and any matchup you create by picking show <b>just the score, no odds bar</b>. Flip the <b>Live / Predicted</b> toggle (top) to see the model’s frozen pre-tournament forecast against the actual results — each game shows what was predicted vs what happened, and the <b>Prediction %</b> grades it (full credit for an exact score, partial for the right winner).</p>
-    <p><b>Data sources.</b> Fixtures, live scores &amp; final results: <a href="https://www.espn.com/soccer/" target="_blank" rel="noopener">ESPN</a> scoreboard feed (<code>site.api.espn.com</code>, polled live). <b>Per-game win-%:</b> DraftKings 3-way moneyline via that ESPN feed, de-vigged (used pre-match &amp; in-play). <b>Future-round winners / overall favourites:</b> a strength equation from each team’s FIFA ranking + opponent-adjusted offensive &amp; defensive form, continuously re-fitted to the live per-game betting lines (no key, updates after every game). It’s tuned to the market — reproducing the live R32 lines to ~6.5% and the bookmakers’ outright title odds at r≈0.97. <b>Predicted scorelines:</b> winning margin from those odds, goals from each team’s 2026 group-stage attack &amp; defence (opponent-adjusted), eased toward their <a href="https://inside.fifa.com/fifa-world-ranking" target="_blank" rel="noopener">FIFA World Ranking</a>. Not affiliated with FIFA, ESPN or DraftKings.</p>
+    <p><b>Tap a team</b> to send them through (tap again to undo, or <b>Reset</b>). Winners follow the <b>live ESPN/DraftKings odds</b> where a game has them — the win-% bar — and a <b>FIFA-rank + form model</b> for rounds that aren’t set yet; your picks override. Predicted scores match the projected winner, and a close tie can go to penalties. Flip <b>Live / Predicted</b> to grade the model’s frozen pre-tournament forecast.</p>
+    <p><b>Sources:</b> <a href="https://www.espn.com/soccer/" target="_blank" rel="noopener">ESPN</a> scoreboard feed — live scores plus de-vigged DraftKings moneyline; future rounds &amp; scorelines from a FIFA-ranking + opponent-adjusted form model, re-fit to the live lines after every game. Not affiliated with FIFA, ESPN or DraftKings.</p>
     <p class="updated" id="updatedAt"></p>
   </div>
 </div>
@@ -393,6 +396,8 @@ const BRKROUND = {}; BRACKET.forEach(m=>BRKROUND[m.espnId]=m.round);   // espnId
 const ROUND_LABEL = {R32:["Round of 32","32 teams"],R16:["Round of 16","16 teams"],QF:["Quarterfinals","8 teams"],SF:["Semifinals","4 teams"],F:["Final","🏆"]};
 const ROUND_ORDER = ["R32","R16","QF","SF","F"];
 const NEXT_ROUND = {R32:"R16",R16:"QF",QF:"SF",SF:"F"};
+// what WINNING each round earns — used to label a pick's cumulative reach-&-win probability
+const NEXT_LABEL = {R32:"to reach the round of 16", R16:"to reach the quarter-finals", QF:"to reach the semi-finals", SF:"to reach the final", F:"to win the World Cup"};
 
 /* ---------- MODEL TUNABLES — every magic number in one auditable place ---------- */
 const MODEL = Object.freeze({
@@ -668,6 +673,41 @@ function refreshProjection(){
 const projTeam = (m,side)=> PROJ[m.id]?PROJ[m.id][side]:null;
 const matchWinner = m => PROJ[m.id]?PROJ[m.id].winner:null;
 
+/* ---------- Reach probabilities (model) ----------------------------------------
+   Forward pass: P(team wins each bracket node), marginalised over every opponent it
+   could meet — the live per-game odds for the R32, the strength model for later rounds,
+   seeded by real results. IGNORES your picks on purpose, so a game you picked can show
+   the model's HONEST chance of that pick actually happening. dist[node][team] =
+   P(team reaches this node AND wins it) = P(team advances to the next round). */
+function modelWin(m,a,b){
+  if(m.round==="R32"){ const r=recWith(m,a,b);
+    if(r&&r.advByTeam&&r.advByTeam[a]!=null&&r.advByTeam[b]!=null){ const s=r.advByTeam[a]+r.advByTeam[b]; if(s>0) return r.advByTeam[a]/s; } }
+  return advProb(a,b);
+}
+let REACH=null;
+function computeReach(){
+  const dist={};
+  for(const m of ROUND_ORDER.flatMap(r=>VISUAL[r]||[])){
+    const d={};
+    if(m.round==="R32"){
+      const a=m.home.team, b=m.away.team, fw=finalWinner(m,a,b);
+      if(fw){ d[a]=fw===a?1:0; d[b]=fw===b?1:0; }
+      else { const p=modelWin(m,a,b); d[a]=p; d[b]=1-p; }
+    } else {
+      const dA=dist[m.home.feed]||{}, dB=dist[m.away.feed]||{}, fw=finalWinner(m);
+      if(fw){ d[fw]=1; }
+      else for(const ta in dA){ const pa=dA[ta]; if(pa<=1e-6) continue;
+        for(const tb in dB){ if(tb===ta) continue; const pb=dB[tb]; if(pb<=1e-6) continue;
+          const meet=pa*pb, p=advProb(ta,tb);
+          d[ta]=(d[ta]||0)+meet*p; d[tb]=(d[tb]||0)+meet*(1-p); } }
+    }
+    dist[m.id]=d;
+  }
+  return dist;
+}
+const reach=()=>{ if(!REACH) REACH=computeReach(); return REACH; };   // memoised; invalidated on each fetch
+const pctP=x=> x>=0.005? Math.round(x*100)+"%" : "<1%";
+
 /* ============================== Rendering ============================== */
 const $=s=>document.querySelector(s);
 const pct=x=> x>=0.995?"99%": x<0.005?"1%": Math.round(x*100)+"%";
@@ -763,11 +803,20 @@ function matchHTML(m){
   } else foot="";
   const clr = picked?`<span class="clr" data-clear="${m.id}" role="button" tabindex="0" aria-label="Undo pick">undo ✕</span>`:"";
 
+  // once you pick a team, show the model's real chance of THAT team all the way along its
+  // projected path — how likely they actually are to get this far & win (ignores the pick,
+  // so it's the honest number). Appears on every future game your picked team is winning.
+  let pickOdds="";
+  if(winner && !livePlayed && NEXT_LABEL[m.round] && Object.values(picks).indexOf(winner)>=0){
+    const R=reach(), p=(R[m.id]&&R[m.id][winner]!=null)?R[m.id][winner]:null;
+    if(p!=null) pickOdds=`<div class="pick-odds" title="The model's honest probability of your team reaching here and winning — your pick overrides the bracket, this is its real chance"><span class="fl" aria-hidden="true">${(TEAMS[winner]||{}).flag||""}</span><b>${pctP(p)}</b><span class="lbl">${NEXT_LABEL[m.round]}</span></div>`;
+  }
+
   return `<div class="match" data-mid="${m.id}">
     <div class="m-top"><span class="when">${fmtWhen(m)}${proj?' <span class="proj-tag">· proj</span>':''}</span>${tag}</div>
     ${teamRowHTML(m,"home",a,scH,roleHome, pens&&winner===a?'<span class="pens-badge">pens ✓</span>':'', proj)}
     ${teamRowHTML(m,"away",b,scA,roleAway, pens&&winner===b?'<span class="pens-badge">pens ✓</span>':'', proj)}
-    ${advbar}
+    ${advbar}${pickOdds}
     ${(foot||clr)?`<div class="m-foot">${foot}<span style="flex:1"></span>${clr}</div>`:""}
   </div>`;
 }
@@ -1041,7 +1090,7 @@ async function fetchLive(manual){
     }
     if(parsed===0) throw new Error("no events parsed");
     live=next; livePair=pair; GAMES_KO=ko;
-    refreshRatings(); refreshProjection(); refreshStrength();  // proj first so the strength fit sees current teams
+    refreshRatings(); refreshProjection(); refreshStrength(); REACH=null;  // proj first so the strength fit sees current teams; reach re-derives lazily
     feedOk=true; failCount=0; lastUpdate=new Date(); setLiveStatus(); render();
   }catch(err){
     if(myseq!==fetchSeq) return;                             // superseded — ignore its failure
