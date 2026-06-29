@@ -97,8 +97,8 @@
   .scroll-hint{display:block;font-size:11.5px;color:var(--ink3);margin:12px 2px 0}
   .sr-only{position:absolute;width:1px;height:1px;padding:0;margin:-1px;overflow:hidden;clip:rect(0,0,0,0);white-space:nowrap;border:0}
   .round-head .hedge,.minitab .hedge{color:var(--clay);font-weight:800;cursor:help;margin-left:1px}
-  .bracket-scroll{overflow-x:auto;overflow-y:hidden;padding:14px 2px 8px;-webkit-overflow-scrolling:touch;scrollbar-width:thin;
-    --fade-l:0px;--fade-r:0px;   /* soft edge fade — only on the side with hidden content (toggled in JS) */
+  .bracket-scroll{overflow-x:auto;overflow-y:hidden;margin:0 -18px;padding:14px 18px 8px;-webkit-overflow-scrolling:touch;scrollbar-width:thin;
+    --fade-l:0px;--fade-r:0px;   /* full-bleed so the fade starts at the window edge; padding keeps the card gutter */
     -webkit-mask-image:linear-gradient(to right,transparent 0,#000 var(--fade-l),#000 calc(100% - var(--fade-r)),transparent 100%);
     mask-image:linear-gradient(to right,transparent 0,#000 var(--fade-l),#000 calc(100% - var(--fade-r)),transparent 100%)}
   .bracket-scroll.fade-l{--fade-l:22px}
@@ -246,7 +246,7 @@
     .minitab{flex:0 0 auto;border:1px solid var(--line2);background:transparent;color:var(--ink2);
       border-radius:999px;padding:8px 13px;font:inherit;font-size:13px;font-weight:700;min-height:40px;cursor:pointer;white-space:nowrap}
     .minitab.on{background:var(--ink);color:var(--bg);border-color:var(--ink)}
-    .bracket-scroll{overflow:visible;padding:10px 0;-webkit-mask-image:none;mask-image:none}
+    .bracket-scroll{overflow:visible;margin:0;padding:10px 0;-webkit-mask-image:none;mask-image:none}
     .bracket.mobile{flex-direction:column;gap:14px;min-width:0}
     .bracket.mobile .round{flex:0 0 auto;min-width:0;width:100%}
     .bracket.mobile .round-head{display:none}
