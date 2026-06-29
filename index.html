@@ -371,18 +371,20 @@ const BRACKET = [
   {id:"R32-14",round:"R32",slot:14,espnId:"760499",date:"2026-07-03T18:00Z",home:{team:"AUS"},away:{team:"EGY"}},
   {id:"R32-15",round:"R32",slot:15,espnId:"760500",date:"2026-07-03T22:00Z",home:{team:"ARG"},away:{team:"CPV"}},
   {id:"R32-16",round:"R32",slot:16,espnId:"760501",date:"2026-07-04T01:30Z",home:{team:"COL"},away:{team:"GHA"}},
-  {id:"R16-1",round:"R16",slot:1,espnId:"760502",date:"2026-07-04T17:00Z",home:{feed:"R32-1"},away:{feed:"R32-3"}},
-  {id:"R16-2",round:"R16",slot:2,espnId:"760504",date:"2026-07-05T20:00Z",home:{feed:"R32-4"},away:{feed:"R32-6"}},
-  {id:"R16-3",round:"R16",slot:3,espnId:"760503",date:"2026-07-04T21:00Z",home:{feed:"R32-2"},away:{feed:"R32-5"}},
-  {id:"R16-4",round:"R16",slot:4,espnId:"760505",date:"2026-07-06T00:00Z",home:{feed:"R32-7"},away:{feed:"R32-8"}},
-  {id:"R16-5",round:"R16",slot:5,espnId:"760506",date:"2026-07-06T19:00Z",home:{feed:"R32-11"},away:{feed:"R32-12"}},
-  {id:"R16-6",round:"R16",slot:6,espnId:"760507",date:"2026-07-07T00:00Z",home:{feed:"R32-9"},away:{feed:"R32-10"}},
-  {id:"R16-7",round:"R16",slot:7,espnId:"760509",date:"2026-07-07T16:00Z",home:{feed:"R32-14"},away:{feed:"R32-16"}},
-  {id:"R16-8",round:"R16",slot:8,espnId:"760508",date:"2026-07-07T20:00Z",home:{feed:"R32-13"},away:{feed:"R32-15"}},
-  {id:"QF-1",round:"QF",slot:1,espnId:"760510",date:"2026-07-09T20:00Z",home:{feed:"R16-1"},away:{feed:"R16-2"}},
-  {id:"QF-2",round:"QF",slot:2,espnId:"760511",date:"2026-07-10T19:00Z",home:{feed:"R16-5"},away:{feed:"R16-6"}},
-  {id:"QF-3",round:"QF",slot:3,espnId:"760512",date:"2026-07-11T21:00Z",home:{feed:"R16-3"},away:{feed:"R16-4"}},
-  {id:"QF-4",round:"QF",slot:4,espnId:"760513",date:"2026-07-12T01:00Z",home:{feed:"R16-7"},away:{feed:"R16-8"}},
+  // R16: adjacent R32 games pair up (1v2, 3v4, …) exactly per the official bracket —
+  // home = upper game, away = lower game, so the two-sided layout reads top-to-bottom right.
+  {id:"R16-1",round:"R16",slot:1,espnId:"760503",date:"2026-07-04T21:00Z",home:{feed:"R32-3"},away:{feed:"R32-6"}},   // GER/PAR vs FRA/SWE
+  {id:"R16-2",round:"R16",slot:2,espnId:"760502",date:"2026-07-04T17:00Z",home:{feed:"R32-1"},away:{feed:"R32-4"}},   // RSA/CAN vs NED/MAR
+  {id:"R16-3",round:"R16",slot:3,espnId:"760506",date:"2026-07-06T19:00Z",home:{feed:"R32-12"},away:{feed:"R32-11"}}, // POR/CRO vs ESP/AUT
+  {id:"R16-4",round:"R16",slot:4,espnId:"760507",date:"2026-07-06T23:00Z",home:{feed:"R32-10"},away:{feed:"R32-9"}},  // USA/BIH vs BEL/SEN
+  {id:"R16-5",round:"R16",slot:5,espnId:"760504",date:"2026-07-05T20:00Z",home:{feed:"R32-2"},away:{feed:"R32-5"}},   // BRA/JPN vs CIV/NOR
+  {id:"R16-6",round:"R16",slot:6,espnId:"760505",date:"2026-07-05T23:00Z",home:{feed:"R32-7"},away:{feed:"R32-8"}},   // MEX/ECU vs ENG/COD
+  {id:"R16-7",round:"R16",slot:7,espnId:"760509",date:"2026-07-07T16:00Z",home:{feed:"R32-15"},away:{feed:"R32-14"}}, // ARG/CPV vs AUS/EGY
+  {id:"R16-8",round:"R16",slot:8,espnId:"760508",date:"2026-07-07T20:00Z",home:{feed:"R32-13"},away:{feed:"R32-16"}}, // SUI/ALG vs COL/GHA
+  {id:"QF-1",round:"QF",slot:1,espnId:"760510",date:"2026-07-09T20:00Z",home:{feed:"R16-1"},away:{feed:"R16-2"}},     // left top
+  {id:"QF-2",round:"QF",slot:2,espnId:"760511",date:"2026-07-10T20:00Z",home:{feed:"R16-3"},away:{feed:"R16-4"}},     // left bottom
+  {id:"QF-3",round:"QF",slot:3,espnId:"760512",date:"2026-07-11T16:00Z",home:{feed:"R16-5"},away:{feed:"R16-6"}},     // right top
+  {id:"QF-4",round:"QF",slot:4,espnId:"760513",date:"2026-07-11T20:00Z",home:{feed:"R16-7"},away:{feed:"R16-8"}},     // right bottom
   {id:"SF-1",round:"SF",slot:1,espnId:"760514",date:"2026-07-14T19:00Z",home:{feed:"QF-1"},away:{feed:"QF-2"}},
   {id:"SF-2",round:"SF",slot:2,espnId:"760515",date:"2026-07-15T19:00Z",home:{feed:"QF-3"},away:{feed:"QF-4"}},
   {id:"F-1",round:"F",slot:1,espnId:"760517",date:"2026-07-19T19:00Z",home:{feed:"SF-1"},away:{feed:"SF-2"}},
